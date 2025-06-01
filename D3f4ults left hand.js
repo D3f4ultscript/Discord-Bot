@@ -1,5 +1,13 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagBits } = require('discord.js');
+const express = require('express');
 require('dotenv').config();
+
+// Webserver starten für Render
+const app = express();
+app.get('/', (req, res) => res.send('✅ Bot is running!'));
+app.listen(process.env.PORT || 3000, () => {
+    console.log('Webserver started on port ' + (process.env.PORT || 3000));
+});
 
 // Create bot with necessary intents
 const client = new Client({
