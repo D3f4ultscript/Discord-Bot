@@ -184,14 +184,6 @@ client.on('interactionCreate', async interaction => {
                 {
                     name: '/freewebh',
                     value: '🔒 Creates a webhook in the specified channel\n*(Requires special role)*',
-                },
-                {
-                    name: '!ping',
-                    value: 'Bot responds with "Pong!" to check if it\'s online',
-                },
-                {
-                    name: '!hello',
-                    value: 'Get a friendly greeting from the bot',
                 }
             ],
             footer: {
@@ -237,21 +229,6 @@ client.on('interactionCreate', async interaction => {
         if (interaction.customId === 'cancel_clear') {
             await interaction.update({ content: 'Channel clearing cancelled.', components: [] });
         }
-    }
-});
-
-// Event for Messages
-client.on('messageCreate', (message) => {
-    // Ignore bot messages
-    if (message.author.bot) return;
-
-    // Simple commands
-    if (message.content === '!ping') {
-        message.reply('Pong!');
-    }
-    
-    if (message.content === '!hello') {
-        message.reply('Hello! I am your Discord Bot!');
     }
 });
 
