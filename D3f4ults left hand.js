@@ -1,4 +1,5 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+require('dotenv').config();
 
 // Create bot with necessary intents
 const client = new Client({
@@ -9,7 +10,7 @@ const client = new Client({
     ],
 });
 
-const token = "MTM3ODQ1NzE0MDQ1NjQ2MDQ3OQ.GJB136.zb93pwKFpsupusNblgTx1bG51bQ5KnU5-qd6qA";
+const token = process.env.DISCORD_TOKEN;
 const clientId = "1378457140456460479";
 
 // Define Slash Commands
