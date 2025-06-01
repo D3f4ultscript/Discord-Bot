@@ -310,7 +310,8 @@ client.on('interactionCreate', async interaction => {
                     'UseSoundboard',
                     'UseEmbeddedActivities',
                     'ChangeNickname',
-                    'CreateInstantInvite'
+                    'CreateInstantInvite',
+                    'UseExternalSounds'
                 ],
                 reason: 'Created VIP role via command'
             },
