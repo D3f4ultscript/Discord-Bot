@@ -1,0 +1,18 @@
+{
+  "name": "d3f4ults-left-hand",
+  "version": "1.0.0",
+  "description": "D3f4ult's Discord Bot",
+  "main": "D3f4ults left hand.js",
+  "scripts": {
+    "start": "node \"D3f4ults left hand.js\"",
+    "dev": "node \"D3f4ults left hand.js\""
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=16.x"
+  }
+}
