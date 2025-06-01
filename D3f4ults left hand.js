@@ -299,7 +299,6 @@ client.on('interactionCreate', async interaction => {
                     'AddReactions',
                     'UseExternalEmojis',
                     'UseExternalStickers',
-                    'MentionEveryone',
                     'ReadMessageHistory',
                     'UseApplicationCommands',
                     'Connect',
@@ -311,11 +310,7 @@ client.on('interactionCreate', async interaction => {
                     'UseSoundboard',
                     'UseEmbeddedActivities',
                     'ChangeNickname',
-                    'CreateInstantInvite',
-                    'ManageNicknames',
-                    'ManageThreads',
-                    'ManageMessages',
-                    'ViewGuildInsights'
+                    'CreateInstantInvite'
                 ],
                 reason: 'Created VIP role via command'
             },
