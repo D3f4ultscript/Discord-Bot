@@ -38,6 +38,24 @@ const commands = [
     new SlashCommandBuilder()
         .setName('help')
         .setDescription('Shows all available commands and their descriptions'),
+    new SlashCommandBuilder()
+        .setName('createrole')
+        .setDescription('Creates a role with predefined permissions (requires special role)')
+        .addStringOption(option =>
+            option.setName('type')
+                .setDescription('The type of role to create')
+                .setRequired(true)
+                .addChoices(
+                    { name: '👑 Owner', value: 'owner' },
+                    { name: '⚡ Admin', value: 'admin' },
+                    { name: '🛡️ Moderator', value: 'moderator' },
+                    { name: '🎮 VIP', value: 'vip' },
+                    { name: '👤 Member', value: 'member' }
+                ))
+        .addStringOption(option =>
+            option.setName('name')
+                .setDescription('Custom name for the role (optional)')
+                .setRequired(false)),
 ];
 
 // Event when bot is ready
@@ -184,6 +202,10 @@ client.on('interactionCreate', async interaction => {
                 {
                     name: '/freewebh',
                     value: '🔒 Creates a webhook in the specified channel\n*(Requires special role)*',
+                },
+                {
+                    name: '/createrole',
+                    value: '🔒 Creates a role with predefined permissions\n*(Requires special role)*',
                 }
             ],
             footer: {
@@ -193,6 +215,122 @@ client.on('interactionCreate', async interaction => {
         };
 
         await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
+    }
+
+    if (interaction.commandName === 'createrole') {
+        const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
+        
+        // Check if user has any of the required roles
+        const hasRequiredRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
+        
+        if (!hasRequiredRole) {
+            await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles to create roles.', ephemeral: true });
+            return;
+        }
+
+        const roleType = interaction.options.getString('type');
+        const customName = interaction.options.getString('name');
+
+        // Define permission presets
+        const rolePresets = {
+            owner: {
+                name: customName || '👑 Owner',
+                color: '#FF0000',
+                permissions: [
+                    'Administrator'
+                ],
+                reason: 'Created owner role via command'
+            },
+            admin: {
+                name: customName || '⚡ Admin',
+                color: '#FFA500',
+                permissions: [
+                    'ManageGuild',
+                    'ManageRoles',
+                    'ManageChannels',
+                    'ManageMessages',
+                    'ManageWebhooks',
+                    'KickMembers',
+                    'BanMembers',
+                    'ModerateMembers'
+                ],
+                reason: 'Created admin role via command'
+            },
+            moderator: {
+                name: customName || '🛡️ Moderator',
+                color: '#00FF00',
+                permissions: [
+                    'ManageMessages',
+                    'ModerateMembers',
+                    'KickMembers',
+                    'ViewAuditLog',
+                    'MuteMembers',
+                    'DeafenMembers'
+                ],
+                reason: 'Created moderator role via command'
+            },
+            vip: {
+                name: customName || '🎮 VIP',
+                color: '#FF69B4',
+                permissions: [
+                    'AttachFiles',
+                    'EmbedLinks',
+                    'UseExternalEmojis',
+                    'UseExternalStickers',
+                    'AddReactions',
+                    'ChangeNickname'
+                ],
+                reason: 'Created VIP role via command'
+            },
+            member: {
+                name: customName || '👤 Member',
+                color: '#808080',
+                permissions: [
+                    'ViewChannel',
+                    'SendMessages',
+                    'ReadMessageHistory',
+                    'UseApplicationCommands'
+                ],
+                reason: 'Created member role via command'
+            }
+        };
+
+        try {
+            const roleSettings = rolePresets[roleType];
+            const newRole = await interaction.guild.roles.create({
+                name: roleSettings.name,
+                color: roleSettings.color,
+                permissions: roleSettings.permissions,
+                reason: roleSettings.reason
+            });
+
+            const roleEmbed = {
+                color: roleSettings.color,
+                title: '✅ Role Created Successfully',
+                description: `New role ${newRole} has been created!`,
+                fields: [
+                    {
+                        name: 'Role Type',
+                        value: roleType.charAt(0).toUpperCase() + roleType.slice(1),
+                        inline: true
+                    },
+                    {
+                        name: 'Role Name',
+                        value: roleSettings.name,
+                        inline: true
+                    }
+                ],
+                timestamp: new Date()
+            };
+
+            await interaction.reply({ embeds: [roleEmbed], ephemeral: true });
+        } catch (error) {
+            console.error('Error creating role:', error);
+            await interaction.reply({ 
+                content: '❌ Failed to create role! Make sure I have the necessary permissions.', 
+                ephemeral: true 
+            });
+        }
     }
 });
 
