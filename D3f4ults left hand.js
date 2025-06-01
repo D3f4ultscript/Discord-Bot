@@ -1,8 +1,5 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagBits } = require('discord.js');
-require('dotenv').config();
-const keepAlive = require('./index.js');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
 
-// Create bot with necessary intents
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -11,10 +8,10 @@ const client = new Client({
     ],
 });
 
-const token = process.env.DISCORD_TOKEN;
+const token = "MTM3ODQ1NzE0MDQ1NjQ2MDQ3OQ.GJB136.zb93pwKFpsupusNblgTx1bG51bQ5KnU5-qd6qA";
 const clientId = "1378457140456460479";
 
-// Define Slash Commands
+// Commands definieren
 const commands = [
     new SlashCommandBuilder()
         .setName('script')
@@ -56,121 +53,90 @@ const commands = [
         .addStringOption(option =>
             option.setName('name')
                 .setDescription('Custom name for the role (optional)')
-                .setRequired(false)),
+                .setRequired(false))
 ];
 
-// Event when bot is ready
+// Bot startet
 client.once('ready', async () => {
-    console.log(`Bot is online as ${client.user.tag}!`);
+    console.log(`Bot ist online als ${client.user.tag}!`);
     
-    // Register Slash Commands
+    // Commands registrieren
     const rest = new REST({ version: '10' }).setToken(token);
     
     try {
-        console.log('Registering Slash Commands...');
+        console.log('Registriere Commands...');
         await rest.put(
             Routes.applicationCommands(clientId),
             { body: commands },
         );
-        console.log('Slash Commands successfully registered!');
+        console.log('Commands erfolgreich registriert!');
     } catch (error) {
-        console.error('Error registering commands:', error);
+        console.error('Fehler beim Registrieren:', error);
     }
 });
 
-// Event for Slash Commands
+// Command Handler
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
+    // Script Command
     if (interaction.commandName === 'script') {
         const scriptCode = '```lua\nloadstring(game:HttpGet("https://raw.githubusercontent.com/D3f4ultscript/Scripts-for-D3f4ult-Hub/refs/heads/main/Hub.lua"))()\n```';
         await interaction.reply(`${interaction.user}\n${scriptCode}`);
     }
     
+    // Info Command
     if (interaction.commandName === 'info') {
         const scriptCode = '```lua\nloadstring(game:HttpGet("https://raw.githubusercontent.com/D3f4ultscript/Scripts-for-D3f4ult-Hub/refs/heads/main/Hub.lua"))()\n```';
         const serverInvite = 'https://discord.gg/2ynN9zcVFk';
         const ownerInfo = '**Server and Script Owner: D3f4ult**';
-        
         await interaction.reply(`${interaction.user}\n\n${serverInvite}\n\n${scriptCode}\n\n${ownerInfo}`);
     }
     
+    // Chatclear Command
     if (interaction.commandName === 'chatclear') {
         const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
-        
-        // Check if user has any of the required roles
-        const hasRequiredRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
-        
-        if (!hasRequiredRole) {
-            await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles to clear the chat.', ephemeral: true });
+        if (!interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id))) {
+            await interaction.reply({ content: '❌ You do not have permission to use this command!', ephemeral: true });
             return;
         }
-        
-        // Create confirmation buttons
-        const confirmButton = new ButtonBuilder()
-            .setCustomId('confirm_clear')
-            .setLabel('Yes, Clear Channel')
-            .setStyle(ButtonStyle.Danger);
-            
-        const cancelButton = new ButtonBuilder()
-            .setCustomId('cancel_clear')
-            .setLabel('Cancel')
-            .setStyle(ButtonStyle.Secondary);
-            
-        const row = new ActionRowBuilder()
-            .addComponents(confirmButton, cancelButton);
-            
-        await interaction.reply({
-            content: '⚠️ Are you sure you want to delete ALL messages in this channel?',
-            components: [row],
-            ephemeral: true
-        });
+        try {
+            let deleted;
+            do {
+                deleted = await interaction.channel.bulkDelete(100, true);
+            } while (deleted.size > 0);
+            await interaction.reply({ content: '✅ Channel has been cleared!', ephemeral: true });
+        } catch (error) {
+            console.error('Error clearing chat:', error);
+            await interaction.reply({ content: '❌ Error while clearing messages!', ephemeral: true });
+        }
     }
 
+    // Webhook Command
     if (interaction.commandName === 'freewebh') {
         const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
-        
-        // Check if user has any of the required roles
-        const hasRequiredRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
-        
-        if (!hasRequiredRole) {
-            await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles to create webhooks.', ephemeral: true });
+        if (!interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id))) {
+            await interaction.reply({ content: '❌ You do not have permission to use this command!', ephemeral: true });
             return;
         }
 
         const channel = interaction.options.getChannel('channel');
         const webhookName = interaction.options.getString('name');
 
-        // Check if the channel is a text channel
-        if (!channel.isTextBased()) {
-            await interaction.reply({ 
-                content: '❌ The selected channel must be a text channel!', 
-                ephemeral: true 
-            });
-            return;
-        }
-
         try {
-            // Create the webhook
             const webhook = await channel.createWebhook({
                 name: webhookName,
                 avatar: client.user.displayAvatarURL(),
             });
-
-            // Send message in the channel about webhook creation
             await channel.send({
                 content: `🎉 **New Free Webhook Created**\nName: \`${webhookName}\`\nURL: ${webhook.url}\nCreated by: ${interaction.user}`,
-                allowedMentions: { users: [] } // Prevents pinging the user who created it
+                allowedMentions: { users: [] }
             });
-
-            // Send confirmation to the user
             await interaction.reply({ 
                 content: `✅ Webhook created successfully!\nName: ${webhookName}\nChannel: ${channel}\nURL: ${webhook.url}`, 
                 ephemeral: true 
             });
-
         } catch (error) {
-            console.error('Error creating webhook:', error);
             await interaction.reply({ 
                 content: '❌ Failed to create webhook! Make sure I have the necessary permissions.', 
                 ephemeral: true 
@@ -178,6 +144,7 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
+    // Help Command
     if (interaction.commandName === 'help') {
         const helpEmbed = {
             color: 0x0099FF,
@@ -214,135 +181,75 @@ client.on('interactionCreate', async interaction => {
             },
             timestamp: new Date(),
         };
-
         await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
     }
 
+    // Create Role Command
     if (interaction.commandName === 'createrole') {
         const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
-        
-        // Check if user has any of the required roles
-        const hasRequiredRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
-        
-        if (!hasRequiredRole) {
-            await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles to create roles.', ephemeral: true });
+        if (!interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id))) {
+            await interaction.reply({ content: '❌ You do not have permission to use this command!', ephemeral: true });
             return;
         }
 
         const roleType = interaction.options.getString('type');
         const customName = interaction.options.getString('name');
 
-        // Define permission presets
         const rolePresets = {
             owner: {
                 name: customName || '👑 Owner',
                 color: '#FF0000',
-                permissions: [
-                    'Administrator'
-                ],
-                reason: 'Created owner role via command'
+                permissions: ['Administrator'],
             },
             admin: {
                 name: customName || '⚡ Admin',
                 color: '#FFA500',
-                permissions: [
-                    'Administrator'
-                ],
-                reason: 'Created admin role via command'
+                permissions: ['Administrator'],
             },
             moderator: {
                 name: customName || '🛡️ Moderator',
                 color: '#00FF00',
                 permissions: [
-                    'ViewAuditLog',
-                    'ModerateMembers',
-                    'KickMembers',
-                    'ManageMessages',
-                    'ManageThreads',
-                    'ManageNicknames',
-                    'MuteMembers',
-                    'DeafenMembers',
-                    'MoveMembers',
-                    'ViewChannel',
-                    'SendMessages',
-                    'SendMessagesInThreads',
-                    'CreatePublicThreads',
-                    'CreatePrivateThreads',
-                    'EmbedLinks',
-                    'AttachFiles',
-                    'AddReactions',
-                    'UseExternalEmojis',
-                    'UseExternalStickers',
-                    'MentionEveryone',
-                    'ReadMessageHistory',
-                    'UseApplicationCommands',
-                    'Connect',
-                    'Speak',
-                    'Stream',
-                    'UseVAD',
-                    'PrioritySpeaker',
-                    'RequestToSpeak'
+                    'ViewAuditLog', 'ModerateMembers', 'KickMembers',
+                    'ManageMessages', 'ManageThreads', 'ManageNicknames',
+                    'MuteMembers', 'DeafenMembers', 'MoveMembers',
+                    'ViewChannel', 'SendMessages', 'SendMessagesInThreads',
+                    'CreatePublicThreads', 'CreatePrivateThreads',
+                    'EmbedLinks', 'AttachFiles', 'AddReactions',
+                    'UseExternalEmojis', 'UseExternalStickers',
+                    'MentionEveryone', 'ReadMessageHistory',
+                    'UseApplicationCommands', 'Connect', 'Speak',
+                    'Stream', 'UseVAD', 'PrioritySpeaker', 'RequestToSpeak'
                 ],
-                reason: 'Created moderator role via command'
             },
             vip: {
                 name: customName || '🎮 VIP',
                 color: '#FF69B4',
                 permissions: [
-                    'ViewChannel',
-                    'SendMessages',
-                    'SendMessagesInThreads',
-                    'CreatePublicThreads',
-                    'CreatePrivateThreads',
-                    'SendVoiceMessages',
-                    'EmbedLinks',
-                    'AttachFiles',
-                    'AddReactions',
-                    'UseExternalEmojis',
-                    'UseExternalStickers',
-                    'ReadMessageHistory',
-                    'UseApplicationCommands',
-                    'Connect',
-                    'Speak',
-                    'Stream',
-                    'UseVAD',
-                    'PrioritySpeaker',
-                    'RequestToSpeak',
-                    'UseSoundboard',
-                    'UseEmbeddedActivities',
-                    'ChangeNickname',
-                    'CreateInstantInvite',
-                    'UseExternalSounds'
+                    'ViewChannel', 'SendMessages', 'SendMessagesInThreads',
+                    'CreatePublicThreads', 'CreatePrivateThreads',
+                    'SendVoiceMessages', 'EmbedLinks', 'AttachFiles',
+                    'AddReactions', 'UseExternalEmojis', 'UseExternalStickers',
+                    'ReadMessageHistory', 'UseApplicationCommands',
+                    'Connect', 'Speak', 'Stream', 'UseVAD',
+                    'PrioritySpeaker', 'RequestToSpeak', 'UseSoundboard',
+                    'UseEmbeddedActivities', 'ChangeNickname',
+                    'CreateInstantInvite', 'UseExternalSounds'
                 ],
-                reason: 'Created VIP role via command'
             },
             member: {
                 name: customName || '👤 Member',
                 color: '#808080',
                 permissions: [
-                    'ViewChannel',
-                    'SendMessages',
-                    'SendMessagesInThreads',
-                    'CreatePublicThreads',
-                    'CreatePrivateThreads',
-                    'SendVoiceMessages',
-                    'EmbedLinks',
-                    'AttachFiles',
-                    'AddReactions',
-                    'UseExternalEmojis',
-                    'UseExternalStickers',
-                    'ReadMessageHistory',
-                    'UseApplicationCommands',
-                    'Connect',
-                    'Speak',
-                    'Stream',
-                    'UseVAD',
-                    'UseSoundboard',
-                    'UseEmbeddedActivities',
-                    'RequestToSpeak',
-                    'CreateInstantInvite'
+                    'ViewChannel', 'SendMessages', 'SendMessagesInThreads',
+                    'CreatePublicThreads', 'CreatePrivateThreads',
+                    'SendVoiceMessages', 'EmbedLinks', 'AttachFiles',
+                    'AddReactions', 'UseExternalEmojis', 'UseExternalStickers',
+                    'ReadMessageHistory', 'UseApplicationCommands',
+                    'Connect', 'Speak', 'Stream', 'UseVAD',
+                    'UseSoundboard', 'UseEmbeddedActivities',
+                    'RequestToSpeak', 'CreateInstantInvite'
                 ],
-                reason: 'Created member role via command'
             }
         };
 
@@ -352,29 +259,13 @@ client.on('interactionCreate', async interaction => {
                 name: roleSettings.name,
                 color: roleSettings.color,
                 permissions: roleSettings.permissions,
-                reason: roleSettings.reason
+                reason: 'Created via command'
             });
 
-            const roleEmbed = {
-                color: roleSettings.color,
-                title: '✅ Role Created Successfully',
-                description: `New role ${newRole} has been created!`,
-                fields: [
-                    {
-                        name: 'Role Type',
-                        value: roleType.charAt(0).toUpperCase() + roleType.slice(1),
-                        inline: true
-                    },
-                    {
-                        name: 'Role Name',
-                        value: roleSettings.name,
-                        inline: true
-                    }
-                ],
-                timestamp: new Date()
-            };
-
-            await interaction.reply({ embeds: [roleEmbed], ephemeral: true });
+            await interaction.reply({ 
+                content: `✅ Role "${roleSettings.name}" has been created successfully!`, 
+                ephemeral: true 
+            });
         } catch (error) {
             console.error('Error creating role:', error);
             await interaction.reply({ 
@@ -385,43 +276,5 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// Event for Button Interactions
-client.on('interactionCreate', async interaction => {
-    if (interaction.isButton()) {
-        if (interaction.customId === 'confirm_clear') {
-            const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
-            
-            // Check roles again
-            const hasRequiredRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
-            
-            if (!hasRequiredRole) {
-                await interaction.update({ content: '❌ No permission! You need specific roles to clear the chat.', components: [] });
-                return;
-            }
-            
-            try {
-                await interaction.update({ content: '🔄 Clearing channel...', components: [] });
-                
-                // Delete all messages
-                let deleted;
-                do {
-                    deleted = await interaction.channel.bulkDelete(100, true);
-                } while (deleted.size > 0);
-                
-                await interaction.followUp({ content: '✅ Channel has been successfully cleared!', ephemeral: true });
-            } catch (error) {
-                console.error('Error while deleting:', error);
-                await interaction.followUp({ content: '❌ Error while deleting messages!', ephemeral: true });
-            }
-        }
-        
-        if (interaction.customId === 'cancel_clear') {
-            await interaction.update({ content: 'Channel clearing cancelled.', components: [] });
-        }
-    }
-});
-
-// Start the webserver to keep the bot alive
-keepAlive();
-// Login bot with token
+// Bot einloggen
 client.login(token);

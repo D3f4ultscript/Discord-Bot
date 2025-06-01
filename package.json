@@ -7,8 +7,6 @@
     "start": "node \"D3f4ults left hand.js\""
   },
   "dependencies": {
-    "discord.js": "^14.14.1",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2"
+    "discord.js": "^14.14.1"
   }
 }
