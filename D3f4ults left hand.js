@@ -26,7 +26,7 @@ const commands = [
         .setDescription('Shows server info and script'),
     new SlashCommandBuilder()
         .setName('freewebh')
-        .setDescription('Creates a webhook in the specified channel')
+        .setDescription('Creates a webhook in the specified channel (requires special role)')
         .addChannelOption(option =>
             option.setName('channel')
                 .setDescription('Select the channel for the webhook')
@@ -35,6 +35,9 @@ const commands = [
             option.setName('name')
                 .setDescription('Name for the webhook')
                 .setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('help')
+        .setDescription('Shows all available commands and their descriptions'),
 ];
 
 // Event when bot is ready
@@ -154,6 +157,50 @@ client.on('interactionCreate', async interaction => {
                 ephemeral: true 
             });
         }
+    }
+
+    if (interaction.commandName === 'help') {
+        const helpEmbed = {
+            color: 0x0099FF,
+            title: '📚 Available Commands',
+            description: 'Here are all available commands:',
+            fields: [
+                {
+                    name: '/help',
+                    value: 'Shows this help message with all available commands',
+                },
+                {
+                    name: '/script',
+                    value: 'Outputs the D3f4ult Hub Script',
+                },
+                {
+                    name: '/info',
+                    value: 'Shows server information and the script',
+                },
+                {
+                    name: '/chatclear',
+                    value: '🔒 Deletes all messages in the channel\n*(Requires special role)*',
+                },
+                {
+                    name: '/freewebh',
+                    value: '🔒 Creates a webhook in the specified channel\n*(Requires special role)*',
+                },
+                {
+                    name: '!ping',
+                    value: 'Bot responds with "Pong!" to check if it\'s online',
+                },
+                {
+                    name: '!hello',
+                    value: 'Get a friendly greeting from the bot',
+                }
+            ],
+            footer: {
+                text: 'Commands marked with 🔒 require specific roles to use'
+            },
+            timestamp: new Date(),
+        };
+
+        await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
     }
 });
 
