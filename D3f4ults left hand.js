@@ -76,6 +76,28 @@ const commands = [
             option.setName('name')
                 .setDescription('Custom name for the role (optional)')
                 .setRequired(false)),
+    new SlashCommandBuilder()
+        .setName('giverole')
+        .setDescription('Gives a role to a member (requires special role)')
+        .addRoleOption(option =>
+            option.setName('role')
+                .setDescription('The role to give')
+                .setRequired(true))
+        .addUserOption(option =>
+            option.setName('member')
+                .setDescription('The member to give the role to')
+                .setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('removerole')
+        .setDescription('Removes a role from a member (requires special role)')
+        .addRoleOption(option =>
+            option.setName('role')
+                .setDescription('The role to remove')
+                .setRequired(true))
+        .addUserOption(option =>
+            option.setName('member')
+                .setDescription('The member to remove the role from')
+                .setRequired(true))
 ];
 
 // Event when bot is ready
@@ -239,6 +261,14 @@ client.on('interactionCreate', async interaction => {
                 {
                     name: '/createrole',
                     value: '🔒 Creates a role with predefined permissions\n*(Requires special role)*',
+                },
+                {
+                    name: '/giverole',
+                    value: '🔒 Gives a role to a member\n*(Requires special role)*',
+                },
+                {
+                    name: '/removerole',
+                    value: '🔒 Removes a role from a member\n*(Requires special role)*',
                 }
             ],
             footer: {
@@ -411,6 +441,82 @@ client.on('interactionCreate', async interaction => {
             console.error('Error creating role:', error);
             await interaction.reply({ 
                 content: '❌ Failed to create role! Make sure I have the necessary permissions.', 
+                ephemeral: true 
+            });
+        }
+    }
+
+    if (interaction.commandName === 'giverole') {
+        const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
+        
+        // Check if user has any of the required roles
+        const hasRequiredRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
+        
+        if (!hasRequiredRole) {
+            await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
+            return;
+        }
+
+        const role = interaction.options.getRole('role');
+        const member = interaction.options.getMember('member');
+
+        // Check if role and member exist
+        if (!role || !member) {
+            await interaction.reply({ content: '❌ Role or member not found!', ephemeral: true });
+            return;
+        }
+
+        try {
+            // Add role to member
+            await member.roles.add(role);
+            
+            // Send success message
+            await interaction.reply({ 
+                content: `✅ The role ${role} has been successfully given to ${member}!`, 
+                ephemeral: true 
+            });
+        } catch (error) {
+            console.error('Error giving role:', error);
+            await interaction.reply({ 
+                content: '❌ Failed to give role! Make sure I have the necessary permissions.', 
+                ephemeral: true 
+            });
+        }
+    }
+
+    if (interaction.commandName === 'removerole') {
+        const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
+        
+        // Check if user has any of the required roles
+        const hasRequiredRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
+        
+        if (!hasRequiredRole) {
+            await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
+            return;
+        }
+
+        const role = interaction.options.getRole('role');
+        const member = interaction.options.getMember('member');
+
+        // Check if role and member exist
+        if (!role || !member) {
+            await interaction.reply({ content: '❌ Role or member not found!', ephemeral: true });
+            return;
+        }
+
+        try {
+            // Remove role from member
+            await member.roles.remove(role);
+            
+            // Send success message
+            await interaction.reply({ 
+                content: `✅ The role ${role} has been successfully removed from ${member}!`, 
+                ephemeral: true 
+            });
+        } catch (error) {
+            console.error('Error removing role:', error);
+            await interaction.reply({ 
+                content: '❌ Failed to remove role! Make sure I have the necessary permissions.', 
                 ephemeral: true 
             });
         }
