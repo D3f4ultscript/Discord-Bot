@@ -520,16 +520,21 @@ client.on('interactionCreate', async interaction => {
             return;
         }
 
-        // Create verification button
-        const verifyButton = new ButtonBuilder()
-            .setCustomId('verify_rules')
-            .setLabel('✅ Verify')
+        // Create verification buttons
+        const acceptButton = new ButtonBuilder()
+            .setCustomId('accept_rules')
+            .setLabel('✅ Accept Rules / Verify')
             .setStyle(ButtonStyle.Success);
             
+        const declineButton = new ButtonBuilder()
+            .setCustomId('decline_rules')
+            .setLabel('❌ Decline Rules')
+            .setStyle(ButtonStyle.Danger);
+            
         const row = new ActionRowBuilder()
-            .addComponents(verifyButton);
+            .addComponents(acceptButton, declineButton);
 
-        // Send rules message with button
+        // Send rules message with buttons
         await interaction.reply({
             content: "**Rules**\n1. be nice.\n2. Let us know if scripts are no longer up to date.\n3. Look through all channels like with scripts before asking where the script is.\n4. If you need help, create a ticket or if it's a small problem, just ping Support or Moderators.",
             components: [row]
@@ -566,7 +571,7 @@ client.on('interactionCreate', async interaction => {
             await interaction.update({ content: 'Channel clearing cancelled.', components: [] });
         }
 
-        if (interaction.customId === 'verify_rules') {
+        if (interaction.customId === 'accept_rules') {
             try {
                 // Get the verification role
                 const verificationRole = interaction.guild.roles.cache.get('1274092938254876744');
@@ -579,11 +584,51 @@ client.on('interactionCreate', async interaction => {
                 // Add the role to the user
                 await interaction.member.roles.add(verificationRole);
                 
-                // Send confirmation
+                // Send confirmation in the channel
                 await interaction.reply({ content: '✅ You have been verified! Thank you for accepting the rules.', ephemeral: true });
+                
+                // Send DM to the user
+                try {
+                    await interaction.user.send({
+                        content: `✅ **Verification Successful!**\n\nYou are now verified in **${interaction.guild.name}**.\n\nBy accepting the rules, you agree to follow them at all times. Failure to comply may result in warnings or other penalties.\n\nIf you change your mind, you can use the decline button to remove your verification.`
+                    });
+                } catch (dmError) {
+                    console.error('Could not send DM to user:', dmError);
+                    // If we can't DM the user, we'll just continue without error
+                }
             } catch (error) {
                 console.error('Error during verification:', error);
                 await interaction.reply({ content: '❌ Failed to verify you! Please contact an administrator.', ephemeral: true });
+            }
+        }
+        
+        if (interaction.customId === 'decline_rules') {
+            try {
+                // Get the verification role
+                const verificationRole = interaction.guild.roles.cache.get('1274092938254876744');
+                
+                if (verificationRole) {
+                    // Remove the role from the user if they have it
+                    if (interaction.member.roles.cache.has(verificationRole.id)) {
+                        await interaction.member.roles.remove(verificationRole);
+                    }
+                }
+                
+                // Send confirmation
+                await interaction.reply({ content: '❌ You have declined the rules. Some features may be restricted.', ephemeral: true });
+                
+                // Send DM to the user
+                try {
+                    await interaction.user.send({
+                        content: `❌ **Rules Declined**\n\nYou have declined the rules in **${interaction.guild.name}**.\n\nSome features and channels may be restricted. If you change your mind, you can verify again by accepting the rules.`
+                    });
+                } catch (dmError) {
+                    console.error('Could not send DM to user:', dmError);
+                    // If we can't DM the user, we'll just continue without error
+                }
+            } catch (error) {
+                console.error('Error during rule declination:', error);
+                await interaction.reply({ content: '❌ An error occurred! Please contact an administrator.', ephemeral: true });
             }
         }
     }
