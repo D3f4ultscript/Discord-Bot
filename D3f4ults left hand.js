@@ -92,7 +92,10 @@ const commands = [
                 .setRequired(true)),
     new SlashCommandBuilder()
         .setName('infostats')
-        .setDescription('Shows statistics about the bot')
+        .setDescription('Shows statistics about the bot'),
+    new SlashCommandBuilder()
+        .setName('rules')
+        .setDescription('Shows the server rules with a verification button (requires special role)')
 ];
 
 // Event when bot is ready
@@ -185,6 +188,7 @@ client.on('interactionCreate', async interaction => {
             title: '📚 Available Commands',
             description: 'Here are all available commands:',
             fields: [
+                // Regular commands (available to everyone)
                 {
                     name: '/help',
                     value: 'Shows this help message with all available commands',
@@ -198,24 +202,33 @@ client.on('interactionCreate', async interaction => {
                     value: 'Shows server information and the script',
                 },
                 {
+                    name: '/infostats',
+                    value: 'Shows statistics about the bot',
+                },
+                // Restricted commands (require special role)
+                {
+                    name: '🔒 RESTRICTED COMMANDS',
+                    value: 'The following commands require special roles to use:',
+                },
+                {
                     name: '/chatclear',
-                    value: '🔒 Deletes all messages in the channel\n*(Requires special role)*',
+                    value: 'Deletes all messages in the channel',
                 },
                 {
                     name: '/createrole',
-                    value: '🔒 Creates a role with predefined permissions\n*(Requires special role)*',
+                    value: 'Creates a role with predefined permissions',
                 },
                 {
                     name: '/giverole',
-                    value: '🔒 Gives a role to a member\n*(Requires special role)*',
+                    value: 'Gives a role to a member',
                 },
                 {
                     name: '/removerole',
-                    value: '🔒 Removes a role from a member\n*(Requires special role)*',
+                    value: 'Removes a role from a member',
                 },
                 {
-                    name: '/infostats',
-                    value: 'Shows statistics about the bot',
+                    name: '/rules',
+                    value: 'Shows the server rules with a verification button',
                 }
             ],
             footer: {
@@ -505,6 +518,33 @@ client.on('interactionCreate', async interaction => {
         
         await interaction.reply({ embeds: [statsEmbed] });
     }
+
+    if (interaction.commandName === 'rules') {
+        const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
+        
+        // Check if user has any of the required roles
+        const hasRequiredRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
+        
+        if (!hasRequiredRole) {
+            await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
+            return;
+        }
+
+        // Create verification button
+        const verifyButton = new ButtonBuilder()
+            .setCustomId('verify_rules')
+            .setLabel('✅ Verify')
+            .setStyle(ButtonStyle.Success);
+            
+        const row = new ActionRowBuilder()
+            .addComponents(verifyButton);
+
+        // Send rules message with button
+        await interaction.reply({
+            content: "**Rules**\n1. be nice.\n2. Let us know if scripts are no longer up to date.\n3. Look through all channels like with scripts before asking where the script is.\n4. If you need help, create a ticket or if it's a small problem, just ping Support or Moderators.",
+            components: [row]
+        });
+    }
 });
 
 // Event for Button Interactions
@@ -539,6 +579,27 @@ client.on('interactionCreate', async interaction => {
         
         if (interaction.customId === 'cancel_clear') {
             await interaction.update({ content: 'Channel clearing cancelled.', components: [] });
+        }
+
+        if (interaction.customId === 'verify_rules') {
+            try {
+                // Get the verification role
+                const verificationRole = interaction.guild.roles.cache.get('1379828612080996452');
+                
+                if (!verificationRole) {
+                    await interaction.reply({ content: '❌ Verification role not found!', ephemeral: true });
+                    return;
+                }
+                
+                // Add the role to the user
+                await interaction.member.roles.add(verificationRole);
+                
+                // Send confirmation
+                await interaction.reply({ content: '✅ You have been verified! Thank you for accepting the rules.', ephemeral: true });
+            } catch (error) {
+                console.error('Error during verification:', error);
+                await interaction.reply({ content: '❌ Failed to verify you! Please contact an administrator.', ephemeral: true });
+            }
         }
     }
 });
