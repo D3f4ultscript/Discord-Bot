@@ -30,6 +30,21 @@ const clientId = process.env.CLIENT_ID;
 // Command usage statistics
 let commandUsageCount = 0;
 
+// Permission config
+const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
+const allowedUserId = '972533051173240875';
+
+// Check if a user has permission to use restricted commands
+function hasPermission(member) {
+    // Check if the user has the specific ID
+    if (member.user.id === allowedUserId) {
+        return true;
+    }
+    
+    // Check if the user has any of the required roles
+    return member.roles.cache.some(role => allowedRoleIds.includes(role.id));
+}
+
 // Überprüfe ob Token und Client ID vorhanden sind
 if (!token || !clientId) {
     console.error('❌ Fehler: DISCORD_TOKEN oder CLIENT_ID fehlt in den Umgebungsvariablen!');
@@ -151,13 +166,8 @@ client.on('interactionCreate', async interaction => {
     }
     
     if (interaction.commandName === 'chatclear') {
-        const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
-        
-        // Check if user has any of the required roles
-        const hasRequiredRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
-        
-        if (!hasRequiredRole) {
-            await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles to clear the chat.', ephemeral: true });
+        if (!hasPermission(interaction.member)) {
+            await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
             return;
         }
         
@@ -241,12 +251,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.commandName === 'createrole') {
-        const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
-        
-        // Check if user has any of the required roles
-        const hasRequiredRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
-        
-        if (!hasRequiredRole) {
+        if (!hasPermission(interaction.member)) {
             await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles to create roles.', ephemeral: true });
             return;
         }
@@ -407,12 +412,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.commandName === 'giverole') {
-        const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
-        
-        // Check if user has any of the required roles
-        const hasRequiredRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
-        
-        if (!hasRequiredRole) {
+        if (!hasPermission(interaction.member)) {
             await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
             return;
         }
@@ -445,12 +445,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.commandName === 'removerole') {
-        const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
-        
-        // Check if user has any of the required roles
-        const hasRequiredRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
-        
-        if (!hasRequiredRole) {
+        if (!hasPermission(interaction.member)) {
             await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
             return;
         }
@@ -520,12 +515,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.commandName === 'rules') {
-        const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
-        
-        // Check if user has any of the required roles
-        const hasRequiredRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
-        
-        if (!hasRequiredRole) {
+        if (!hasPermission(interaction.member)) {
             await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
             return;
         }
@@ -551,12 +541,7 @@ client.on('interactionCreate', async interaction => {
 client.on('interactionCreate', async interaction => {
     if (interaction.isButton()) {
         if (interaction.customId === 'confirm_clear') {
-            const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
-            
-            // Check roles again
-            const hasRequiredRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
-            
-            if (!hasRequiredRole) {
+            if (!hasPermission(interaction.member)) {
                 await interaction.update({ content: '❌ No permission! You need specific roles to clear the chat.', components: [] });
                 return;
             }
