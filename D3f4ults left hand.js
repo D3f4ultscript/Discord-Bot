@@ -569,7 +569,7 @@ client.on('interactionCreate', async interaction => {
         if (interaction.customId === 'verify_rules') {
             try {
                 // Get the verification role
-                const verificationRole = interaction.guild.roles.cache.get('1379828612080996452');
+                const verificationRole = interaction.guild.roles.cache.get('1274092938254876744');
                 
                 if (!verificationRole) {
                     await interaction.reply({ content: '❌ Verification role not found!', ephemeral: true });
