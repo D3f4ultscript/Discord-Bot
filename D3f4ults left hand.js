@@ -27,6 +27,9 @@ const client = new Client({
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.CLIENT_ID;
 
+// Command usage statistics
+let commandUsageCount = 0;
+
 // Überprüfe ob Token und Client ID vorhanden sind
 if (!token || !clientId) {
     console.error('❌ Fehler: DISCORD_TOKEN oder CLIENT_ID fehlt in den Umgebungsvariablen!');
@@ -44,17 +47,6 @@ const commands = [
     new SlashCommandBuilder()
         .setName('info')
         .setDescription('Shows server info and script'),
-    new SlashCommandBuilder()
-        .setName('freewebh')
-        .setDescription('Creates a webhook in the specified channel (requires special role)')
-        .addChannelOption(option =>
-            option.setName('channel')
-                .setDescription('Select the channel for the webhook')
-                .setRequired(true))
-        .addStringOption(option =>
-            option.setName('name')
-                .setDescription('Name for the webhook')
-                .setRequired(true)),
     new SlashCommandBuilder()
         .setName('help')
         .setDescription('Shows all available commands and their descriptions'),
@@ -97,7 +89,10 @@ const commands = [
         .addUserOption(option =>
             option.setName('member')
                 .setDescription('The member to remove the role from')
-                .setRequired(true))
+                .setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('infostats')
+        .setDescription('Shows statistics about the bot')
 ];
 
 // Event when bot is ready
@@ -135,6 +130,9 @@ client.once('ready', async () => {
 // Event for Slash Commands
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
+
+    // Increment command usage counter
+    commandUsageCount++;
 
     if (interaction.commandName === 'script') {
         const scriptCode = '```lua\nloadstring(game:HttpGet("https://raw.githubusercontent.com/D3f4ultscript/Scripts-for-D3f4ult-Hub/refs/heads/main/Hub.lua"))()\n```';
@@ -181,57 +179,6 @@ client.on('interactionCreate', async interaction => {
         });
     }
 
-    if (interaction.commandName === 'freewebh') {
-        const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
-        
-        // Check if user has any of the required roles
-        const hasRequiredRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
-        
-        if (!hasRequiredRole) {
-            await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles to create webhooks.', ephemeral: true });
-            return;
-        }
-
-        const channel = interaction.options.getChannel('channel');
-        const webhookName = interaction.options.getString('name');
-
-        // Check if the channel is a text channel
-        if (!channel.isTextBased()) {
-            await interaction.reply({ 
-                content: '❌ The selected channel must be a text channel!', 
-                ephemeral: true 
-            });
-            return;
-        }
-
-        try {
-            // Create the webhook
-            const webhook = await channel.createWebhook({
-                name: webhookName,
-                avatar: client.user.displayAvatarURL(),
-            });
-
-            // Send message in the channel about webhook creation
-            await channel.send({
-                content: `🎉 **New Free Webhook Created**\nName: \`${webhookName}\`\nURL: ${webhook.url}\nCreated by: ${interaction.user}`,
-                allowedMentions: { users: [] } // Prevents pinging the user who created it
-            });
-
-            // Send confirmation to the user
-            await interaction.reply({ 
-                content: `✅ Webhook created successfully!\nName: ${webhookName}\nChannel: ${channel}\nURL: ${webhook.url}`, 
-                ephemeral: true 
-            });
-
-        } catch (error) {
-            console.error('Error creating webhook:', error);
-            await interaction.reply({ 
-                content: '❌ Failed to create webhook! Make sure I have the necessary permissions.', 
-                ephemeral: true 
-            });
-        }
-    }
-
     if (interaction.commandName === 'help') {
         const helpEmbed = {
             color: 0x0099FF,
@@ -255,10 +202,6 @@ client.on('interactionCreate', async interaction => {
                     value: '🔒 Deletes all messages in the channel\n*(Requires special role)*',
                 },
                 {
-                    name: '/freewebh',
-                    value: '🔒 Creates a webhook in the specified channel\n*(Requires special role)*',
-                },
-                {
                     name: '/createrole',
                     value: '🔒 Creates a role with predefined permissions\n*(Requires special role)*',
                 },
@@ -269,6 +212,10 @@ client.on('interactionCreate', async interaction => {
                 {
                     name: '/removerole',
                     value: '🔒 Removes a role from a member\n*(Requires special role)*',
+                },
+                {
+                    name: '/infostats',
+                    value: 'Shows statistics about the bot',
                 }
             ],
             footer: {
@@ -521,6 +468,43 @@ client.on('interactionCreate', async interaction => {
             });
         }
     }
+
+    if (interaction.commandName === 'infostats') {
+        // Count how many servers the bot is in
+        const serverCount = client.guilds.cache.size;
+        
+        // Create an embed with bot statistics
+        const statsEmbed = {
+            color: 0x00FFFF,
+            title: '📊 Bot Statistics',
+            thumbnail: {
+                url: client.user.displayAvatarURL({ dynamic: true })
+            },
+            fields: [
+                {
+                    name: '🌐 Servers',
+                    value: `${serverCount}`,
+                    inline: true
+                },
+                {
+                    name: '⌨️ Commands Used',
+                    value: `${commandUsageCount}`,
+                    inline: true
+                },
+                {
+                    name: '⏱️ Uptime',
+                    value: formatUptime(client.uptime),
+                    inline: true
+                }
+            ],
+            footer: {
+                text: `Bot ID: ${client.user.id}`
+            },
+            timestamp: new Date()
+        };
+        
+        await interaction.reply({ embeds: [statsEmbed] });
+    }
 });
 
 // Event for Button Interactions
@@ -561,3 +545,14 @@ client.on('interactionCreate', async interaction => {
 
 // Login bot with token
 client.login(token);
+
+// Function to format uptime nicely
+function formatUptime(uptime) {
+    const totalSeconds = Math.floor(uptime / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+}
