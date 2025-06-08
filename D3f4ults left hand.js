@@ -34,6 +34,9 @@ let commandUsageCount = 0;
 const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
 const allowedUserId = '972533051173240875';
 
+// Track users waiting to input rules messages
+const waitingForRulesMessage = new Map();
+
 // Check if a user has permission to use restricted commands
 function hasPermission(member) {
     // Check if the user has the specific ID
@@ -110,14 +113,10 @@ const commands = [
         .setDescription('Shows statistics about the bot'),
     new SlashCommandBuilder()
         .setName('rules')
-        .setDescription('Shows a custom message with verification buttons (requires special role)')
+        .setDescription('Sets up a rules message with verification buttons (requires special role)')
         .addRoleOption(option =>
             option.setName('verification_role')
                 .setDescription('The role to give when users accept the rules')
-                .setRequired(true))
-        .addStringOption(option =>
-            option.setName('message')
-                .setDescription('The message to display (supports basic markdown)')
                 .setRequired(true))
 ];
 
@@ -246,7 +245,7 @@ client.on('interactionCreate', async interaction => {
                 },
                 {
                     name: '/rules',
-                    value: 'Shows a custom message with verification buttons',
+                    value: 'Sets up a rules message with verification buttons',
                 }
             ],
             footer: {
@@ -528,32 +527,20 @@ client.on('interactionCreate', async interaction => {
             return;
         }
 
-        // Get command options
+        // Get the verification role
         const verificationRole = interaction.options.getRole('verification_role');
-        const customMessage = interaction.options.getString('message');
-
-        // Store the role ID in the button custom ID for later use
-        const acceptButtonId = `accept_rules:${verificationRole.id}`;
-        const declineButtonId = `decline_rules:${verificationRole.id}`;
-
-        // Create verification buttons
-        const acceptButton = new ButtonBuilder()
-            .setCustomId(acceptButtonId)
-            .setLabel('✅ Accept Rules / Verify')
-            .setStyle(ButtonStyle.Success);
-            
-        const declineButton = new ButtonBuilder()
-            .setCustomId(declineButtonId)
-            .setLabel('❌ Decline Rules')
-            .setStyle(ButtonStyle.Danger);
-            
-        const row = new ActionRowBuilder()
-            .addComponents(acceptButton, declineButton);
-
-        // Send custom message with buttons
-        await interaction.reply({
-            content: customMessage,
-            components: [row]
+        
+        // Store the user and role in the waiting map
+        waitingForRulesMessage.set(interaction.user.id, {
+            channelId: interaction.channelId,
+            roleId: verificationRole.id,
+            timestamp: Date.now() // To potentially expire old requests
+        });
+        
+        // Ask the user to provide the rules message
+        await interaction.reply({ 
+            content: `Please type your rules message now. Your next message in this channel will be used as the rules content with verification buttons.`,
+            ephemeral: true 
         });
     }
 });
@@ -654,6 +641,62 @@ client.on('interactionCreate', async interaction => {
                 console.error('Error during rule declination:', error);
                 await interaction.reply({ content: '❌ An error occurred! Please contact an administrator.', ephemeral: true });
             }
+        }
+    }
+});
+
+// Message event handler for capturing rules content
+client.on('messageCreate', async message => {
+    // Ignore bot messages
+    if (message.author.bot) return;
+    
+    // Check if this user is waiting to input rules
+    const waitingData = waitingForRulesMessage.get(message.author.id);
+    if (waitingData && waitingData.channelId === message.channelId) {
+        // Remove from waiting list
+        waitingForRulesMessage.delete(message.author.id);
+        
+        // Create verification buttons
+        const acceptButtonId = `accept_rules:${waitingData.roleId}`;
+        const declineButtonId = `decline_rules:${waitingData.roleId}`;
+        
+        const acceptButton = new ButtonBuilder()
+            .setCustomId(acceptButtonId)
+            .setLabel('✅ Accept Rules / Verify')
+            .setStyle(ButtonStyle.Success);
+            
+        const declineButton = new ButtonBuilder()
+            .setCustomId(declineButtonId)
+            .setLabel('❌ Decline Rules')
+            .setStyle(ButtonStyle.Danger);
+            
+        const row = new ActionRowBuilder()
+            .addComponents(acceptButton, declineButton);
+            
+        try {
+            // Delete the user's message if we can
+            try {
+                await message.delete();
+            } catch (deleteError) {
+                console.error('Could not delete user message:', deleteError);
+                // Continue even if we can't delete the message
+            }
+            
+            // Send the rules message with buttons
+            await message.channel.send({
+                content: message.content,
+                components: [row]
+            });
+            
+            // Confirm to the user
+            await message.author.send(`✅ Rules message has been posted in <#${message.channelId}> with verification buttons.`).catch(() => {});
+        } catch (error) {
+            console.error('Error posting rules message:', error);
+            // Try to notify the user
+            await message.channel.send({ 
+                content: `❌ There was an error posting your rules message. Please try again.`,
+                ephemeral: true 
+            }).catch(() => {});
         }
     }
 });
