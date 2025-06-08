@@ -110,7 +110,15 @@ const commands = [
         .setDescription('Shows statistics about the bot'),
     new SlashCommandBuilder()
         .setName('rules')
-        .setDescription('Shows the server rules with a verification button (requires special role)')
+        .setDescription('Shows a custom message with verification buttons (requires special role)')
+        .addRoleOption(option =>
+            option.setName('verification_role')
+                .setDescription('The role to give when users accept the rules')
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName('message')
+                .setDescription('The message to display (supports basic markdown)')
+                .setRequired(true))
 ];
 
 // Event when bot is ready
@@ -238,7 +246,7 @@ client.on('interactionCreate', async interaction => {
                 },
                 {
                     name: '/rules',
-                    value: 'Shows the server rules with a verification button',
+                    value: 'Shows a custom message with verification buttons',
                 }
             ],
             footer: {
@@ -520,23 +528,31 @@ client.on('interactionCreate', async interaction => {
             return;
         }
 
+        // Get command options
+        const verificationRole = interaction.options.getRole('verification_role');
+        const customMessage = interaction.options.getString('message');
+
+        // Store the role ID in the button custom ID for later use
+        const acceptButtonId = `accept_rules:${verificationRole.id}`;
+        const declineButtonId = `decline_rules:${verificationRole.id}`;
+
         // Create verification buttons
         const acceptButton = new ButtonBuilder()
-            .setCustomId('accept_rules')
+            .setCustomId(acceptButtonId)
             .setLabel('✅ Accept Rules / Verify')
             .setStyle(ButtonStyle.Success);
             
         const declineButton = new ButtonBuilder()
-            .setCustomId('decline_rules')
+            .setCustomId(declineButtonId)
             .setLabel('❌ Decline Rules')
             .setStyle(ButtonStyle.Danger);
             
         const row = new ActionRowBuilder()
             .addComponents(acceptButton, declineButton);
 
-        // Send rules message with buttons
+        // Send custom message with buttons
         await interaction.reply({
-            content: "**Rules**\n1. be nice.\n2. Let us know if scripts are no longer up to date.\n3. Look through all channels like with scripts before asking where the script is.\n4. If you need help, create a ticket or if it's a small problem, just ping Support or Moderators.",
+            content: customMessage,
             components: [row]
         });
     }
@@ -571,13 +587,17 @@ client.on('interactionCreate', async interaction => {
             await interaction.update({ content: 'Channel clearing cancelled.', components: [] });
         }
 
-        if (interaction.customId === 'accept_rules') {
+        // Handle rule acceptance
+        if (interaction.customId.startsWith('accept_rules:')) {
             try {
+                // Extract the role ID from the button custom ID
+                const roleId = interaction.customId.split(':')[1];
+                
                 // Get the verification role
-                const verificationRole = interaction.guild.roles.cache.get('1274092938254876744');
+                const verificationRole = interaction.guild.roles.cache.get(roleId);
                 
                 if (!verificationRole) {
-                    await interaction.reply({ content: '❌ Verification role not found!', ephemeral: true });
+                    await interaction.reply({ content: '❌ Verification role not found! It may have been deleted.', ephemeral: true });
                     return;
                 }
                 
@@ -585,12 +605,12 @@ client.on('interactionCreate', async interaction => {
                 await interaction.member.roles.add(verificationRole);
                 
                 // Send confirmation in the channel
-                await interaction.reply({ content: '✅ You have been verified! Thank you for accepting the rules.', ephemeral: true });
+                await interaction.reply({ content: `✅ You have been verified with the ${verificationRole.name} role! Thank you for accepting the rules.`, ephemeral: true });
                 
                 // Send DM to the user
                 try {
                     await interaction.user.send({
-                        content: `✅ **Verification Successful!**\n\nYou are now verified in **${interaction.guild.name}**.\n\nBy accepting the rules, you agree to follow them at all times. Failure to comply may result in warnings or other penalties.\n\nIf you change your mind, you can use the decline button to remove your verification.`
+                        content: `✅ **Verification Successful!**\n\nYou are now verified in **${interaction.guild.name}** with the ${verificationRole.name} role.\n\nBy accepting the rules, you agree to follow them at all times. Failure to comply may result in warnings or other penalties.\n\nIf you change your mind, you can use the decline button to remove your verification.`
                     });
                 } catch (dmError) {
                     console.error('Could not send DM to user:', dmError);
@@ -602,10 +622,14 @@ client.on('interactionCreate', async interaction => {
             }
         }
         
-        if (interaction.customId === 'decline_rules') {
+        // Handle rule declination
+        if (interaction.customId.startsWith('decline_rules:')) {
             try {
+                // Extract the role ID from the button custom ID
+                const roleId = interaction.customId.split(':')[1];
+                
                 // Get the verification role
-                const verificationRole = interaction.guild.roles.cache.get('1274092938254876744');
+                const verificationRole = interaction.guild.roles.cache.get(roleId);
                 
                 if (verificationRole) {
                     // Remove the role from the user if they have it
