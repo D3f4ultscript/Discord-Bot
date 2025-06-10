@@ -95,12 +95,8 @@ const commands = [
                 .setRequired(true))
         .addUserOption(option =>
             option.setName('member')
-                .setDescription('The member to give the role to (or use "all" in the member field)')
-                .setRequired(false))
-        .addStringOption(option =>
-            option.setName('all_members')
-                .setDescription('Type "all" to give the role to all members (except bots)')
-                .setRequired(false)),
+                .setDescription('The member to give the role to')
+                .setRequired(true)),
     new SlashCommandBuilder()
         .setName('removerole')
         .setDescription('Removes a role from a member (requires special role)')
@@ -110,12 +106,8 @@ const commands = [
                 .setRequired(true))
         .addUserOption(option =>
             option.setName('member')
-                .setDescription('The member to remove the role from (or use "all" in the member field)')
-                .setRequired(false))
-        .addStringOption(option =>
-            option.setName('all_members')
-                .setDescription('Type "all" to remove the role from all members (except bots)')
-                .setRequired(false)),
+                .setDescription('The member to remove the role from')
+                .setRequired(true)),
     new SlashCommandBuilder()
         .setName('infostats')
         .setDescription('Shows statistics about the bot'),
@@ -434,68 +426,10 @@ client.on('interactionCreate', async interaction => {
 
         const role = interaction.options.getRole('role');
         const member = interaction.options.getMember('member');
-        const allMembersOption = interaction.options.getString('all_members');
-        
-        // Check if the "all" option is used
-        if (allMembersOption === 'all' || (member && member.user.username === 'all')) {
-            try {
-                await interaction.deferReply({ ephemeral: true });
-                
-                // Get all members (this may require time for large servers)
-                const members = await interaction.guild.members.fetch();
-                let successCount = 0;
-                let failCount = 0;
-                
-                // Create a progress message
-                await interaction.editReply({ 
-                    content: `⏳ Adding role ${role} to all members (except bots). This may take some time...`, 
-                    ephemeral: true 
-                });
-                
-                // Process members in batches to avoid rate limits
-                for (const [id, guildMember] of members) {
-                    // Skip bots
-                    if (guildMember.user.bot) continue;
-                    
-                    try {
-                        await guildMember.roles.add(role);
-                        successCount++;
-                        
-                        // Update progress every 10 members
-                        if (successCount % 10 === 0) {
-                            await interaction.editReply({ 
-                                content: `⏳ Progress: Added role to ${successCount} members so far...`, 
-                                ephemeral: true 
-                            });
-                        }
-                    } catch (error) {
-                        console.error(`Error adding role to member ${guildMember.user.tag}:`, error);
-                        failCount++;
-                    }
-                }
-                
-                // Send final success message
-                await interaction.editReply({ 
-                    content: `✅ Role ${role} has been added to ${successCount} members! ${failCount > 0 ? `Failed for ${failCount} members.` : ''}`, 
-                    ephemeral: true 
-                });
-                return;
-            } catch (error) {
-                console.error('Error giving role to all members:', error);
-                await interaction.editReply({ 
-                    content: '❌ An error occurred while adding roles to all members.', 
-                    ephemeral: true 
-                });
-                return;
-            }
-        }
 
-        // Check if role and member exist for single member case
+        // Check if role and member exist
         if (!role || !member) {
-            await interaction.reply({ 
-                content: '❌ Role or member not found! Please specify either a valid member or use "all" in the all_members field.', 
-                ephemeral: true 
-            });
+            await interaction.reply({ content: '❌ Role or member not found!', ephemeral: true });
             return;
         }
 
@@ -525,71 +459,10 @@ client.on('interactionCreate', async interaction => {
 
         const role = interaction.options.getRole('role');
         const member = interaction.options.getMember('member');
-        const allMembersOption = interaction.options.getString('all_members');
-        
-        // Check if the "all" option is used
-        if (allMembersOption === 'all' || (member && member.user.username === 'all')) {
-            try {
-                await interaction.deferReply({ ephemeral: true });
-                
-                // Get all members (this may require time for large servers)
-                const members = await interaction.guild.members.fetch();
-                let successCount = 0;
-                let failCount = 0;
-                
-                // Create a progress message
-                await interaction.editReply({ 
-                    content: `⏳ Removing role ${role} from all members (except bots). This may take some time...`, 
-                    ephemeral: true 
-                });
-                
-                // Process members in batches to avoid rate limits
-                for (const [id, guildMember] of members) {
-                    // Skip bots
-                    if (guildMember.user.bot) continue;
-                    
-                    // Only remove if they have the role
-                    if (guildMember.roles.cache.has(role.id)) {
-                        try {
-                            await guildMember.roles.remove(role);
-                            successCount++;
-                            
-                            // Update progress every 10 members
-                            if (successCount % 10 === 0) {
-                                await interaction.editReply({ 
-                                    content: `⏳ Progress: Removed role from ${successCount} members so far...`, 
-                                    ephemeral: true 
-                                });
-                            }
-                        } catch (error) {
-                            console.error(`Error removing role from member ${guildMember.user.tag}:`, error);
-                            failCount++;
-                        }
-                    }
-                }
-                
-                // Send final success message
-                await interaction.editReply({ 
-                    content: `✅ Role ${role} has been removed from ${successCount} members! ${failCount > 0 ? `Failed for ${failCount} members.` : ''}`, 
-                    ephemeral: true 
-                });
-                return;
-            } catch (error) {
-                console.error('Error removing role from all members:', error);
-                await interaction.editReply({ 
-                    content: '❌ An error occurred while removing roles from all members.', 
-                    ephemeral: true 
-                });
-                return;
-            }
-        }
 
-        // Check if role and member exist for single member case
+        // Check if role and member exist
         if (!role || !member) {
-            await interaction.reply({ 
-                content: '❌ Role or member not found! Please specify either a valid member or use "all" in the all_members field.', 
-                ephemeral: true 
-            });
+            await interaction.reply({ content: '❌ Role or member not found!', ephemeral: true });
             return;
         }
 
@@ -724,64 +597,120 @@ client.on('interactionCreate', async interaction => {
                 // Send DM to the user
                 try {
                     await interaction.user.send({
-                        content: `✅ You have been verified with the ${verificationRole.name} role! Thank you for accepting the rules.`,
-                        embeds: [
-                            {
-                                color: 0x0099FF,
-                                title: '✅ Verification Successful',
-                                description: `You have been successfully verified with the ${verificationRole.name} role!`,
-                                fields: [
-                                    {
-                                        name: 'Role',
-                                        value: verificationRole.name,
-                                        inline: true
-                                    },
-                                    {
-                                        name: 'Verified by',
-                                        value: interaction.user.tag,
-                                        inline: true
-                                    }
-                                ],
-                                timestamp: new Date()
-                            }
-                        ]
+                        content: `✅ **Verification Successful!**\n\nYou are now verified in **${interaction.guild.name}** with the ${verificationRole.name} role.\n\nBy accepting the rules, you agree to follow them at all times. Failure to comply may result in warnings or other penalties.\n\nIf you change your mind, you can use the decline button to remove your verification.`
                     });
-                } catch (error) {
-                    console.error('Error sending DM:', error);
-                    await interaction.reply({ content: '✅ Verification successful, but unable to send DM. Please check your DMs for confirmation.', ephemeral: true });
+                } catch (dmError) {
+                    console.error('Could not send DM to user:', dmError);
+                    // If we can't DM the user, we'll just continue without error
                 }
             } catch (error) {
-                console.error('Error accepting rules:', error);
-                await interaction.reply({ content: '❌ An error occurred while accepting the rules. Please try again later.', ephemeral: true });
+                console.error('Error during verification:', error);
+                await interaction.reply({ content: '❌ Failed to verify you! Please contact an administrator.', ephemeral: true });
+            }
+        }
+        
+        // Handle rule declination
+        if (interaction.customId.startsWith('decline_rules:')) {
+            try {
+                // Extract the role ID from the button custom ID
+                const roleId = interaction.customId.split(':')[1];
+                
+                // Get the verification role
+                const verificationRole = interaction.guild.roles.cache.get(roleId);
+                
+                if (verificationRole) {
+                    // Remove the role from the user if they have it
+                    if (interaction.member.roles.cache.has(verificationRole.id)) {
+                        await interaction.member.roles.remove(verificationRole);
+                    }
+                }
+                
+                // Send confirmation
+                await interaction.reply({ content: '❌ You have declined the rules. Some features may be restricted.', ephemeral: true });
+                
+                // Send DM to the user
+                try {
+                    await interaction.user.send({
+                        content: `❌ **Rules Declined**\n\nYou have declined the rules in **${interaction.guild.name}**.\n\nSome features and channels may be restricted. If you change your mind, you can verify again by accepting the rules.`
+                    });
+                } catch (dmError) {
+                    console.error('Could not send DM to user:', dmError);
+                    // If we can't DM the user, we'll just continue without error
+                }
+            } catch (error) {
+                console.error('Error during rule declination:', error);
+                await interaction.reply({ content: '❌ An error occurred! Please contact an administrator.', ephemeral: true });
             }
         }
     }
 });
 
-// Event for rules message input
+// Message event handler for capturing rules content
 client.on('messageCreate', async message => {
-    if (message.author.id === client.user.id && message.channel.id === waitingForRulesMessage.get(message.author.id)?.channelId) {
-        const roleId = waitingForRulesMessage.get(message.author.id).roleId;
-        const verificationRole = message.guild.roles.cache.get(roleId);
+    // Ignore bot messages
+    if (message.author.bot) return;
+    
+    // Check if this user is waiting to input rules
+    const waitingData = waitingForRulesMessage.get(message.author.id);
+    if (waitingData && waitingData.channelId === message.channelId) {
+        // Remove from waiting list
+        waitingForRulesMessage.delete(message.author.id);
         
-        if (verificationRole) {
-            // Add the role to the user
-            await message.member.roles.add(verificationRole);
+        // Create verification buttons
+        const acceptButtonId = `accept_rules:${waitingData.roleId}`;
+        const declineButtonId = `decline_rules:${waitingData.roleId}`;
+        
+        const acceptButton = new ButtonBuilder()
+            .setCustomId(acceptButtonId)
+            .setLabel('✅ Accept Rules / Verify')
+            .setStyle(ButtonStyle.Success);
             
-            // Send confirmation in the channel
-            await message.channel.send(`✅ You have been verified with the ${verificationRole.name} role! Thank you for accepting the rules.`);
+        const declineButton = new ButtonBuilder()
+            .setCustomId(declineButtonId)
+            .setLabel('❌ Decline Rules')
+            .setStyle(ButtonStyle.Danger);
             
-            // Remove from waiting map
-            waitingForRulesMessage.delete(message.author.id);
+        const row = new ActionRowBuilder()
+            .addComponents(acceptButton, declineButton);
+            
+        try {
+            // Delete the user's message if we can
+            try {
+                await message.delete();
+            } catch (deleteError) {
+                console.error('Could not delete user message:', deleteError);
+                // Continue even if we can't delete the message
+            }
+            
+            // Send the rules message with buttons
+            await message.channel.send({
+                content: message.content,
+                components: [row]
+            });
+            
+            // Confirm to the user
+            await message.author.send(`✅ Rules message has been posted in <#${message.channelId}> with verification buttons.`).catch(() => {});
+        } catch (error) {
+            console.error('Error posting rules message:', error);
+            // Try to notify the user
+            await message.channel.send({ 
+                content: `❌ There was an error posting your rules message. Please try again.`,
+                ephemeral: true 
+            }).catch(() => {});
         }
     }
 });
 
-// Helper function to format uptime
+// Login bot with token
+client.login(token);
+
+// Function to format uptime nicely
 function formatUptime(uptime) {
-    const days = Math.floor(uptime / 86400000);
-    const hours = Math.floor(uptime / 3600000) % 24;
-    const minutes = Math.floor(uptime / 60000) % 60;
-    const seconds = Math.floor(uptime / 1000) % 60;
+    const totalSeconds = Math.floor(uptime / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
     return `${days}d ${hours}h ${minutes}m ${seconds}s`;
 }
