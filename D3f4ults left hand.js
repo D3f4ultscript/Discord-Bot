@@ -88,26 +88,34 @@ const commands = [
                 .setRequired(false)),
     new SlashCommandBuilder()
         .setName('giverole')
-        .setDescription('Gives a role to a member (requires special role)')
+        .setDescription('Gives a role to a member or everyone (requires special role)')
         .addRoleOption(option =>
             option.setName('role')
                 .setDescription('The role to give')
                 .setRequired(true))
         .addUserOption(option =>
             option.setName('member')
-                .setDescription('The member to give the role to')
-                .setRequired(true)),
+                .setDescription('The member to give the role to (leave empty for @everyone)')
+                .setRequired(false))
+        .addBooleanOption(option =>
+            option.setName('everyone')
+                .setDescription('Give the role to everyone on the server')
+                .setRequired(false)),
     new SlashCommandBuilder()
         .setName('removerole')
-        .setDescription('Removes a role from a member (requires special role)')
+        .setDescription('Removes a role from a member or everyone (requires special role)')
         .addRoleOption(option =>
             option.setName('role')
                 .setDescription('The role to remove')
                 .setRequired(true))
         .addUserOption(option =>
             option.setName('member')
-                .setDescription('The member to remove the role from')
-                .setRequired(true)),
+                .setDescription('The member to remove the role from (leave empty for @everyone)')
+                .setRequired(false))
+        .addBooleanOption(option =>
+            option.setName('everyone')
+                .setDescription('Remove the role from everyone on the server')
+                .setRequired(false)),
     new SlashCommandBuilder()
         .setName('infostats')
         .setDescription('Shows statistics about the bot'),
@@ -426,22 +434,56 @@ client.on('interactionCreate', async interaction => {
 
         const role = interaction.options.getRole('role');
         const member = interaction.options.getMember('member');
+        const giveToEveryone = interaction.options.getBoolean('everyone');
 
-        // Check if role and member exist
-        if (!role || !member) {
-            await interaction.reply({ content: '❌ Role or member not found!', ephemeral: true });
+        // Check if role exists
+        if (!role) {
+            await interaction.reply({ content: '❌ Role not found!', ephemeral: true });
             return;
         }
 
         try {
-            // Add role to member
-            await member.roles.add(role);
-            
-            // Send success message
-            await interaction.reply({ 
-                content: `✅ The role ${role} has been successfully given to ${member}!`, 
-                ephemeral: true 
-            });
+            // Check if we're giving the role to everyone
+            if (giveToEveryone) {
+                await interaction.reply({ 
+                    content: `⏳ Starting to give the role ${role} to all members. This might take a while...`, 
+                    ephemeral: true 
+                });
+                
+                // Fetch all guild members and add the role to each
+                const allMembers = await interaction.guild.members.fetch();
+                let successCount = 0;
+                let failCount = 0;
+                
+                for (const [id, guildMember] of allMembers) {
+                    try {
+                        await guildMember.roles.add(role);
+                        successCount++;
+                    } catch (err) {
+                        console.error(`Failed to add role to member ${guildMember.user.tag}:`, err);
+                        failCount++;
+                    }
+                }
+                
+                await interaction.followUp({ 
+                    content: `✅ Operation completed! Added role ${role} to ${successCount} members (failed: ${failCount}).`, 
+                    ephemeral: true 
+                });
+            } else if (member) {
+                // Add role to specified member
+                await member.roles.add(role);
+                
+                // Send success message
+                await interaction.reply({ 
+                    content: `✅ The role ${role} has been successfully given to ${member}!`, 
+                    ephemeral: true 
+                });
+            } else {
+                await interaction.reply({ 
+                    content: '❌ Please specify a member or enable the "everyone" option!', 
+                    ephemeral: true 
+                });
+            }
         } catch (error) {
             console.error('Error giving role:', error);
             await interaction.reply({ 
@@ -459,22 +501,59 @@ client.on('interactionCreate', async interaction => {
 
         const role = interaction.options.getRole('role');
         const member = interaction.options.getMember('member');
+        const removeFromEveryone = interaction.options.getBoolean('everyone');
 
-        // Check if role and member exist
-        if (!role || !member) {
-            await interaction.reply({ content: '❌ Role or member not found!', ephemeral: true });
+        // Check if role exists
+        if (!role) {
+            await interaction.reply({ content: '❌ Role not found!', ephemeral: true });
             return;
         }
 
         try {
-            // Remove role from member
-            await member.roles.remove(role);
-            
-            // Send success message
-            await interaction.reply({ 
-                content: `✅ The role ${role} has been successfully removed from ${member}!`, 
-                ephemeral: true 
-            });
+            // Check if we're removing the role from everyone
+            if (removeFromEveryone) {
+                await interaction.reply({ 
+                    content: `⏳ Starting to remove the role ${role} from all members. This might take a while...`, 
+                    ephemeral: true 
+                });
+                
+                // Fetch all guild members who have the role and remove it
+                const allMembers = await interaction.guild.members.fetch();
+                let successCount = 0;
+                let failCount = 0;
+                
+                for (const [id, guildMember] of allMembers) {
+                    // Only try to remove the role if the member has it
+                    if (guildMember.roles.cache.has(role.id)) {
+                        try {
+                            await guildMember.roles.remove(role);
+                            successCount++;
+                        } catch (err) {
+                            console.error(`Failed to remove role from member ${guildMember.user.tag}:`, err);
+                            failCount++;
+                        }
+                    }
+                }
+                
+                await interaction.followUp({ 
+                    content: `✅ Operation completed! Removed role ${role} from ${successCount} members (failed: ${failCount}).`, 
+                    ephemeral: true 
+                });
+            } else if (member) {
+                // Remove role from specified member
+                await member.roles.remove(role);
+                
+                // Send success message
+                await interaction.reply({ 
+                    content: `✅ The role ${role} has been successfully removed from ${member}!`, 
+                    ephemeral: true 
+                });
+            } else {
+                await interaction.reply({ 
+                    content: '❌ Please specify a member or enable the "everyone" option!', 
+                    ephemeral: true 
+                });
+            }
         } catch (error) {
             console.error('Error removing role:', error);
             await interaction.reply({ 
