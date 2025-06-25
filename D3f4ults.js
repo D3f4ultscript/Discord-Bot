@@ -128,27 +128,38 @@ const commands = [
         .setDescription('Shows all members, bots, and member count without bots')
 ];
 
+// Error handling
+client.on('error', error => {
+    console.error('Discord client error:', error);
+});
+
+process.on('unhandledRejection', error => {
+    console.error('Unhandled promise rejection:', error);
+});
+
 // Event when bot is ready
 client.once('ready', async () => {
-    console.log(`Bot is online as ${client.user.tag}!`);
+    console.log(`\n=== BOT STARTUP ===`);
+    console.log(`✅ Bot is online as ${client.user.tag}!`);
+    console.log(`📊 Serving ${client.guilds.cache.size} servers`);
+    console.log(`==================\n`);
     
     // Register Slash Commands
     const rest = new REST({ version: '10' }).setToken(token);
     
     try {
-        console.log('Starte Registrierung der Slash Commands...');
+        console.log('Registering Slash Commands...');
         
-        // Registriere die Commands global
+        // Register commands globally
         const data = await rest.put(
             Routes.applicationCommands(clientId),
             { body: commands },
         );
 
-        console.log(`✅ Erfolgreich ${data.length} Slash Commands registriert!`);
-        console.log('Registrierte Commands:', data.map(cmd => cmd.name).join(', '));
+        console.log(`✅ Successfully registered ${data.length} slash commands!`);
+        console.log('Registered commands:', data.map(cmd => cmd.name).join(', '));
     } catch (error) {
-        console.error('Fehler beim Registrieren der Commands:', error);
-        // Zeige mehr Details über den Fehler
+        console.error('Error registering commands:', error);
         if (error.requestBody) {
             console.error('Request Details:', {
                 body: error.requestBody,
@@ -162,506 +173,529 @@ client.once('ready', async () => {
 
 // Event for Slash Commands
 client.on('interactionCreate', async interaction => {
-    if (!interaction.isChatInputCommand()) return;
+    try {
+        if (!interaction.isChatInputCommand()) return;
 
-    // Increment command usage counter
-    commandUsageCount++;
+        // Increment command usage counter
+        commandUsageCount++;
 
-    if (interaction.commandName === 'chatclear') {
-        if (!hasPermission(interaction.member)) {
-            await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
-            return;
-        }
-        
-        // Create confirmation buttons
-        const confirmButton = new ButtonBuilder()
-            .setCustomId('confirm_clear')
-            .setLabel('Yes, Clear Channel')
-            .setStyle(ButtonStyle.Danger);
-            
-        const cancelButton = new ButtonBuilder()
-            .setCustomId('cancel_clear')
-            .setLabel('Cancel')
-            .setStyle(ButtonStyle.Secondary);
-            
-        const row = new ActionRowBuilder()
-            .addComponents(confirmButton, cancelButton);
-            
-        await interaction.reply({
-            content: '⚠️ Are you sure you want to delete ALL messages in this channel?',
-            components: [row],
-            ephemeral: true
-        });
-    }
-
-    if (interaction.commandName === 'help') {
-        const helpEmbed = {
-            color: 0x0099FF,
-            title: '📚 Available Commands',
-            description: 'Here are all available commands:\n🔒 = Requires special role',
-            fields: [
-                {
-                    name: '/help',
-                    value: 'Shows this help message with all available commands',
-                },
-                {
-                    name: '/showmembers',
-                    value: 'Shows all members, bots, and member count statistics',
-                },
-                {
-                    name: '/infostats',
-                    value: 'Shows statistics about the bot',
-                },
-                {
-                    name: '🔒 /chatclear',
-                    value: 'Deletes all messages in the channel',
-                },
-                {
-                    name: '🔒 /createrole',
-                    value: 'Creates a role with predefined permissions',
-                },
-                {
-                    name: '🔒 /giverole',
-                    value: 'Gives a role to a member or everyone',
-                },
-                {
-                    name: '🔒 /removerole',
-                    value: 'Removes a role from a member or everyone',
-                },
-                {
-                    name: '🔒 /rules',
-                    value: 'Sets up a rules message with verification buttons',
-                }
-            ],
-            timestamp: new Date(),
-        };
-
-        await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
-    }
-
-    if (interaction.commandName === 'createrole') {
-        if (!hasPermission(interaction.member)) {
-            await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles to create roles.', ephemeral: true });
+        // Check if the interaction is still valid
+        if (!interaction.isRepliable()) {
+            console.log('Interaction is no longer valid');
             return;
         }
 
-        const roleType = interaction.options.getString('type');
-        const customName = interaction.options.getString('name');
-
-        // Define permission presets
-        const rolePresets = {
-            owner: {
-                name: customName || '👑 Owner',
-                color: '#FF0000',
-                permissions: [
-                    'Administrator'
-                ],
-                reason: 'Created owner role via command'
-            },
-            admin: {
-                name: customName || '⚡ Admin',
-                color: '#FFA500',
-                permissions: [
-                    'Administrator'
-                ],
-                reason: 'Created admin role via command'
-            },
-            moderator: {
-                name: customName || '🛡️ Moderator',
-                color: '#00FF00',
-                permissions: [
-                    'ViewAuditLog',
-                    'ModerateMembers',
-                    'KickMembers',
-                    'ManageMessages',
-                    'ManageThreads',
-                    'ManageNicknames',
-                    'MuteMembers',
-                    'DeafenMembers',
-                    'MoveMembers',
-                    'ViewChannel',
-                    'SendMessages',
-                    'SendMessagesInThreads',
-                    'CreatePublicThreads',
-                    'CreatePrivateThreads',
-                    'EmbedLinks',
-                    'AttachFiles',
-                    'AddReactions',
-                    'UseExternalEmojis',
-                    'UseExternalStickers',
-                    'MentionEveryone',
-                    'ReadMessageHistory',
-                    'UseApplicationCommands',
-                    'Connect',
-                    'Speak',
-                    'Stream',
-                    'UseVAD',
-                    'PrioritySpeaker',
-                    'RequestToSpeak'
-                ],
-                reason: 'Created moderator role via command'
-            },
-            vip: {
-                name: customName || '🎮 VIP',
-                color: '#FF69B4',
-                permissions: [
-                    'ViewChannel',
-                    'SendMessages',
-                    'SendMessagesInThreads',
-                    'CreatePublicThreads',
-                    'CreatePrivateThreads',
-                    'SendVoiceMessages',
-                    'EmbedLinks',
-                    'AttachFiles',
-                    'AddReactions',
-                    'UseExternalEmojis',
-                    'UseExternalStickers',
-                    'ReadMessageHistory',
-                    'UseApplicationCommands',
-                    'Connect',
-                    'Speak',
-                    'Stream',
-                    'UseVAD',
-                    'PrioritySpeaker',
-                    'RequestToSpeak',
-                    'UseSoundboard',
-                    'UseEmbeddedActivities',
-                    'ChangeNickname',
-                    'CreateInstantInvite',
-                    'UseExternalSounds'
-                ],
-                reason: 'Created VIP role via command'
-            },
-            member: {
-                name: customName || '👤 Member',
-                color: '#808080',
-                permissions: [
-                    'ViewChannel',
-                    'SendMessages',
-                    'SendMessagesInThreads',
-                    'CreatePublicThreads',
-                    'CreatePrivateThreads',
-                    'SendVoiceMessages',
-                    'EmbedLinks',
-                    'AttachFiles',
-                    'AddReactions',
-                    'UseExternalEmojis',
-                    'UseExternalStickers',
-                    'ReadMessageHistory',
-                    'UseApplicationCommands',
-                    'Connect',
-                    'Speak',
-                    'Stream',
-                    'UseVAD',
-                    'UseSoundboard',
-                    'UseEmbeddedActivities',
-                    'RequestToSpeak',
-                    'CreateInstantInvite'
-                ],
-                reason: 'Created member role via command'
+        if (interaction.commandName === 'chatclear') {
+            if (!hasPermission(interaction.member)) {
+                await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
+                return;
             }
-        };
-
-        try {
-            const roleSettings = rolePresets[roleType];
-            const newRole = await interaction.guild.roles.create({
-                name: roleSettings.name,
-                color: roleSettings.color,
-                permissions: roleSettings.permissions,
-                reason: roleSettings.reason
+            
+            // Create confirmation buttons
+            const confirmButton = new ButtonBuilder()
+                .setCustomId('confirm_clear')
+                .setLabel('Yes, Clear Channel')
+                .setStyle(ButtonStyle.Danger);
+            
+            const cancelButton = new ButtonBuilder()
+                .setCustomId('cancel_clear')
+                .setLabel('Cancel')
+                .setStyle(ButtonStyle.Secondary);
+            
+            const row = new ActionRowBuilder()
+                .addComponents(confirmButton, cancelButton);
+            
+            await interaction.reply({
+                content: '⚠️ Are you sure you want to delete ALL messages in this channel?',
+                components: [row],
+                ephemeral: true
             });
+        }
 
-            const roleEmbed = {
-                color: roleSettings.color,
-                title: '✅ Role Created Successfully',
-                description: `New role ${newRole} has been created!`,
-                fields: [
-                    {
-                        name: 'Role Type',
-                        value: roleType.charAt(0).toUpperCase() + roleType.slice(1),
-                        inline: true
-                    },
-                    {
-                        name: 'Role Name',
-                        value: roleSettings.name,
-                        inline: true
-                    }
-                ],
-                timestamp: new Date()
+        if (interaction.commandName === 'help') {
+            try {
+                const helpEmbed = {
+                    color: 0x0099FF,
+                    title: '📚 Available Commands',
+                    description: 'Here are all available commands:\n🔒 = Requires special role',
+                    fields: [
+                        {
+                            name: '/help',
+                            value: 'Shows this help message with all available commands',
+                        },
+                        {
+                            name: '/showmembers',
+                            value: 'Shows all members, bots, and member count statistics',
+                        },
+                        {
+                            name: '/infostats',
+                            value: 'Shows statistics about the bot',
+                        },
+                        {
+                            name: '🔒 /chatclear',
+                            value: 'Deletes all messages in the channel',
+                        },
+                        {
+                            name: '🔒 /createrole',
+                            value: 'Creates a role with predefined permissions',
+                        },
+                        {
+                            name: '🔒 /giverole',
+                            value: 'Gives a role to a member or everyone',
+                        },
+                        {
+                            name: '🔒 /removerole',
+                            value: 'Removes a role from a member or everyone',
+                        },
+                        {
+                            name: '🔒 /rules',
+                            value: 'Sets up a rules message with verification buttons',
+                        }
+                    ],
+                    timestamp: new Date(),
+                };
+
+                if (!interaction.deferred && interaction.isRepliable()) {
+                    await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
+                }
+            } catch (error) {
+                console.error('Error in help command:', error);
+                if (!interaction.replied && !interaction.deferred && interaction.isRepliable()) {
+                    await interaction.reply({ 
+                        content: '❌ An error occurred while showing the help menu. Please try again later.', 
+                        ephemeral: true 
+                    });
+                }
+            }
+        }
+
+        if (interaction.commandName === 'createrole') {
+            if (!hasPermission(interaction.member)) {
+                await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles to create roles.', ephemeral: true });
+                return;
+            }
+
+            const roleType = interaction.options.getString('type');
+            const customName = interaction.options.getString('name');
+
+            // Define permission presets
+            const rolePresets = {
+                owner: {
+                    name: customName || '👑 Owner',
+                    color: '#FF0000',
+                    permissions: [
+                        'Administrator'
+                    ],
+                    reason: 'Created owner role via command'
+                },
+                admin: {
+                    name: customName || '⚡ Admin',
+                    color: '#FFA500',
+                    permissions: [
+                        'Administrator'
+                    ],
+                    reason: 'Created admin role via command'
+                },
+                moderator: {
+                    name: customName || '🛡️ Moderator',
+                    color: '#00FF00',
+                    permissions: [
+                        'ViewAuditLog',
+                        'ModerateMembers',
+                        'KickMembers',
+                        'ManageMessages',
+                        'ManageThreads',
+                        'ManageNicknames',
+                        'MuteMembers',
+                        'DeafenMembers',
+                        'MoveMembers',
+                        'ViewChannel',
+                        'SendMessages',
+                        'SendMessagesInThreads',
+                        'CreatePublicThreads',
+                        'CreatePrivateThreads',
+                        'EmbedLinks',
+                        'AttachFiles',
+                        'AddReactions',
+                        'UseExternalEmojis',
+                        'UseExternalStickers',
+                        'MentionEveryone',
+                        'ReadMessageHistory',
+                        'UseApplicationCommands',
+                        'Connect',
+                        'Speak',
+                        'Stream',
+                        'UseVAD',
+                        'PrioritySpeaker',
+                        'RequestToSpeak'
+                    ],
+                    reason: 'Created moderator role via command'
+                },
+                vip: {
+                    name: customName || '🎮 VIP',
+                    color: '#FF69B4',
+                    permissions: [
+                        'ViewChannel',
+                        'SendMessages',
+                        'SendMessagesInThreads',
+                        'CreatePublicThreads',
+                        'CreatePrivateThreads',
+                        'SendVoiceMessages',
+                        'EmbedLinks',
+                        'AttachFiles',
+                        'AddReactions',
+                        'UseExternalEmojis',
+                        'UseExternalStickers',
+                        'ReadMessageHistory',
+                        'UseApplicationCommands',
+                        'Connect',
+                        'Speak',
+                        'Stream',
+                        'UseVAD',
+                        'PrioritySpeaker',
+                        'RequestToSpeak',
+                        'UseSoundboard',
+                        'UseEmbeddedActivities',
+                        'ChangeNickname',
+                        'CreateInstantInvite',
+                        'UseExternalSounds'
+                    ],
+                    reason: 'Created VIP role via command'
+                },
+                member: {
+                    name: customName || '👤 Member',
+                    color: '#808080',
+                    permissions: [
+                        'ViewChannel',
+                        'SendMessages',
+                        'SendMessagesInThreads',
+                        'CreatePublicThreads',
+                        'CreatePrivateThreads',
+                        'SendVoiceMessages',
+                        'EmbedLinks',
+                        'AttachFiles',
+                        'AddReactions',
+                        'UseExternalEmojis',
+                        'UseExternalStickers',
+                        'ReadMessageHistory',
+                        'UseApplicationCommands',
+                        'Connect',
+                        'Speak',
+                        'Stream',
+                        'UseVAD',
+                        'UseSoundboard',
+                        'UseEmbeddedActivities',
+                        'RequestToSpeak',
+                        'CreateInstantInvite'
+                    ],
+                    reason: 'Created member role via command'
+                }
             };
 
-            await interaction.reply({ embeds: [roleEmbed], ephemeral: true });
-        } catch (error) {
-            console.error('Error creating role:', error);
-            await interaction.reply({ 
-                content: '❌ Failed to create role! Make sure I have the necessary permissions.', 
-                ephemeral: true 
-            });
-        }
-    }
-
-    if (interaction.commandName === 'giverole') {
-        if (!hasPermission(interaction.member)) {
-            await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
-            return;
-        }
-
-        const role = interaction.options.getRole('role');
-        const member = interaction.options.getMember('member');
-        const giveToEveryone = interaction.options.getBoolean('everyone');
-
-        // Check if role exists
-        if (!role) {
-            await interaction.reply({ content: '❌ Role not found!', ephemeral: true });
-            return;
-        }
-
-        try {
-            // Check if we're giving the role to everyone
-            if (giveToEveryone) {
-                await interaction.reply({ 
-                    content: `⏳ Starting to give the role ${role} to all members. This might take a while...`, 
-                    ephemeral: true 
+            try {
+                const roleSettings = rolePresets[roleType];
+                const newRole = await interaction.guild.roles.create({
+                    name: roleSettings.name,
+                    color: roleSettings.color,
+                    permissions: roleSettings.permissions,
+                    reason: roleSettings.reason
                 });
-                
-                // Fetch all guild members and add the role to each
-                const allMembers = await interaction.guild.members.fetch();
-                let successCount = 0;
-                let failCount = 0;
-                
-                for (const [id, guildMember] of allMembers) {
-                    try {
-                        await guildMember.roles.add(role);
-                        successCount++;
-                    } catch (err) {
-                        console.error(`Failed to add role to member ${guildMember.user.tag}:`, err);
-                        failCount++;
-                    }
-                }
-                
-                await interaction.followUp({ 
-                    content: `✅ Operation completed! Added role ${role} to ${successCount} members (failed: ${failCount}).`, 
-                    ephemeral: true 
-                });
-            } else if (member) {
-                // Add role to specified member
-                await member.roles.add(role);
-                
-                // Send success message
+
+                const roleEmbed = {
+                    color: roleSettings.color,
+                    title: '✅ Role Created Successfully',
+                    description: `New role ${newRole} has been created!`,
+                    fields: [
+                        {
+                            name: 'Role Type',
+                            value: roleType.charAt(0).toUpperCase() + roleType.slice(1),
+                            inline: true
+                        },
+                        {
+                            name: 'Role Name',
+                            value: roleSettings.name,
+                            inline: true
+                        }
+                    ],
+                    timestamp: new Date()
+                };
+
+                await interaction.reply({ embeds: [roleEmbed], ephemeral: true });
+            } catch (error) {
+                console.error('Error creating role:', error);
                 await interaction.reply({ 
-                    content: `✅ The role ${role} has been successfully given to ${member}!`, 
-                    ephemeral: true 
-                });
-            } else {
-                await interaction.reply({ 
-                    content: '❌ Please specify a member or enable the "everyone" option!', 
+                    content: '❌ Failed to create role! Make sure I have the necessary permissions.', 
                     ephemeral: true 
                 });
             }
-        } catch (error) {
-            console.error('Error giving role:', error);
-            await interaction.reply({ 
-                content: '❌ Failed to give role! Make sure I have the necessary permissions.', 
-                ephemeral: true 
-            });
-        }
-    }
-
-    if (interaction.commandName === 'removerole') {
-        if (!hasPermission(interaction.member)) {
-            await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
-            return;
         }
 
-        const role = interaction.options.getRole('role');
-        const member = interaction.options.getMember('member');
-        const removeFromEveryone = interaction.options.getBoolean('everyone');
+        if (interaction.commandName === 'giverole') {
+            if (!hasPermission(interaction.member)) {
+                await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
+                return;
+            }
 
-        // Check if role exists
-        if (!role) {
-            await interaction.reply({ content: '❌ Role not found!', ephemeral: true });
-            return;
-        }
+            const role = interaction.options.getRole('role');
+            const member = interaction.options.getMember('member');
+            const giveToEveryone = interaction.options.getBoolean('everyone');
 
-        try {
-            // Check if we're removing the role from everyone
-            if (removeFromEveryone) {
-                await interaction.reply({ 
-                    content: `⏳ Starting to remove the role ${role} from all members. This might take a while...`, 
-                    ephemeral: true 
-                });
-                
-                // Fetch all guild members who have the role and remove it
-                const allMembers = await interaction.guild.members.fetch();
-                let successCount = 0;
-                let failCount = 0;
-                
-                for (const [id, guildMember] of allMembers) {
-                    // Only try to remove the role if the member has it
-                    if (guildMember.roles.cache.has(role.id)) {
+            // Check if role exists
+            if (!role) {
+                await interaction.reply({ content: '❌ Role not found!', ephemeral: true });
+                return;
+            }
+
+            try {
+                // Check if we're giving the role to everyone
+                if (giveToEveryone) {
+                    await interaction.reply({ 
+                        content: `⏳ Starting to give the role ${role} to all members. This might take a while...`, 
+                        ephemeral: true 
+                    });
+                    
+                    // Fetch all guild members and add the role to each
+                    const allMembers = await interaction.guild.members.fetch();
+                    let successCount = 0;
+                    let failCount = 0;
+                    
+                    for (const [id, guildMember] of allMembers) {
                         try {
-                            await guildMember.roles.remove(role);
+                            await guildMember.roles.add(role);
                             successCount++;
                         } catch (err) {
-                            console.error(`Failed to remove role from member ${guildMember.user.tag}:`, err);
+                            console.error(`Failed to add role to member ${guildMember.user.tag}:`, err);
                             failCount++;
                         }
                     }
+                    
+                    await interaction.followUp({ 
+                        content: `✅ Operation completed! Added role ${role} to ${successCount} members (failed: ${failCount}).`, 
+                        ephemeral: true 
+                    });
+                } else if (member) {
+                    // Add role to specified member
+                    await member.roles.add(role);
+                    
+                    // Send success message
+                    await interaction.reply({ 
+                        content: `✅ The role ${role} has been successfully given to ${member}!`, 
+                        ephemeral: true 
+                    });
+                } else {
+                    await interaction.reply({ 
+                        content: '❌ Please specify a member or enable the "everyone" option!', 
+                        ephemeral: true 
+                    });
                 }
-                
-                await interaction.followUp({ 
-                    content: `✅ Operation completed! Removed role ${role} from ${successCount} members (failed: ${failCount}).`, 
-                    ephemeral: true 
-                });
-            } else if (member) {
-                // Remove role from specified member
-                await member.roles.remove(role);
-                
-                // Send success message
+            } catch (error) {
+                console.error('Error giving role:', error);
                 await interaction.reply({ 
-                    content: `✅ The role ${role} has been successfully removed from ${member}!`, 
-                    ephemeral: true 
-                });
-            } else {
-                await interaction.reply({ 
-                    content: '❌ Please specify a member or enable the "everyone" option!', 
+                    content: '❌ Failed to give role! Make sure I have the necessary permissions.', 
                     ephemeral: true 
                 });
             }
-        } catch (error) {
-            console.error('Error removing role:', error);
-            await interaction.reply({ 
-                content: '❌ Failed to remove role! Make sure I have the necessary permissions.', 
-                ephemeral: true 
-            });
         }
-    }
 
-    if (interaction.commandName === 'infostats') {
-        // Count how many servers the bot is in
-        const serverCount = client.guilds.cache.size;
-        
-        // Create an embed with bot statistics
-        const statsEmbed = {
-            color: 0x00FFFF,
-            title: '📊 Bot Statistics',
-            thumbnail: {
-                url: client.user.displayAvatarURL({ dynamic: true })
-            },
-            fields: [
-                {
-                    name: '🌐 Servers',
-                    value: `${serverCount}`,
-                    inline: true
-                },
-                {
-                    name: '⌨️ Commands Used',
-                    value: `${commandUsageCount}`,
-                    inline: true
-                },
-                {
-                    name: '⏱️ Uptime',
-                    value: formatUptime(client.uptime),
-                    inline: true
+        if (interaction.commandName === 'removerole') {
+            if (!hasPermission(interaction.member)) {
+                await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
+                return;
+            }
+
+            const role = interaction.options.getRole('role');
+            const member = interaction.options.getMember('member');
+            const removeFromEveryone = interaction.options.getBoolean('everyone');
+
+            // Check if role exists
+            if (!role) {
+                await interaction.reply({ content: '❌ Role not found!', ephemeral: true });
+                return;
+            }
+
+            try {
+                // Check if we're removing the role from everyone
+                if (removeFromEveryone) {
+                    await interaction.reply({ 
+                        content: `⏳ Starting to remove the role ${role} from all members. This might take a while...`, 
+                        ephemeral: true 
+                    });
+                    
+                    // Fetch all guild members who have the role and remove it
+                    const allMembers = await interaction.guild.members.fetch();
+                    let successCount = 0;
+                    let failCount = 0;
+                    
+                    for (const [id, guildMember] of allMembers) {
+                        // Only try to remove the role if the member has it
+                        if (guildMember.roles.cache.has(role.id)) {
+                            try {
+                                await guildMember.roles.remove(role);
+                                successCount++;
+                            } catch (err) {
+                                console.error(`Failed to remove role from member ${guildMember.user.tag}:`, err);
+                                failCount++;
+                            }
+                        }
+                    }
+                    
+                    await interaction.followUp({ 
+                        content: `✅ Operation completed! Removed role ${role} from ${successCount} members (failed: ${failCount}).`, 
+                        ephemeral: true 
+                    });
+                } else if (member) {
+                    // Remove role from specified member
+                    await member.roles.remove(role);
+                    
+                    // Send success message
+                    await interaction.reply({ 
+                        content: `✅ The role ${role} has been successfully removed from ${member}!`, 
+                        ephemeral: true 
+                    });
+                } else {
+                    await interaction.reply({ 
+                        content: '❌ Please specify a member or enable the "everyone" option!', 
+                        ephemeral: true 
+                    });
                 }
-            ],
-            footer: {
-                text: `Bot ID: ${client.user.id}`
-            },
-            timestamp: new Date()
-        };
-        
-        await interaction.reply({ embeds: [statsEmbed] });
-    }
-
-    if (interaction.commandName === 'rules') {
-        if (!hasPermission(interaction.member)) {
-            await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
-            return;
+            } catch (error) {
+                console.error('Error removing role:', error);
+                await interaction.reply({ 
+                    content: '❌ Failed to remove role! Make sure I have the necessary permissions.', 
+                    ephemeral: true 
+                });
+            }
         }
 
-        // Get the verification role
-        const verificationRole = interaction.options.getRole('verification_role');
-        
-        // Store the user and role in the waiting map
-        waitingForRulesMessage.set(interaction.user.id, {
-            channelId: interaction.channelId,
-            roleId: verificationRole.id,
-            timestamp: Date.now() // To potentially expire old requests
-        });
-        
-        // Ask the user to provide the rules message
-        await interaction.reply({ 
-            content: `Please type your rules message now. Your next message in this channel will be used as the rules content with verification buttons.`,
-            ephemeral: true 
-        });
-    }
-
-    if (interaction.commandName === 'showmembers') {
-        try {
-            // Fetch all members to ensure we have the latest data
-            await interaction.guild.members.fetch();
+        if (interaction.commandName === 'infostats') {
+            // Count how many servers the bot is in
+            const serverCount = client.guilds.cache.size;
             
-            // Get all members
-            const allMembers = interaction.guild.members.cache;
-            
-            // Calculate counts
-            const totalMembers = allMembers.size;
-            const bots = allMembers.filter(member => member.user.bot).size;
-            const realMembers = totalMembers - bots;
-            
-            // Create lists of members and bots
-            const memberList = allMembers
-                .filter(member => !member.user.bot)
-                .map(member => `${member.user.tag}`)
-                .sort()
-                .join('\n');
-            
-            const botList = allMembers
-                .filter(member => member.user.bot)
-                .map(member => `${member.user.tag}`)
-                .sort()
-                .join('\n');
-            
-            // Create embed
-            const membersEmbed = {
-                color: 0x0099FF,
-                title: '📊 Server Member Statistics',
+            // Create an embed with bot statistics
+            const statsEmbed = {
+                color: 0x00FFFF,
+                title: '📊 Bot Statistics',
+                thumbnail: {
+                    url: client.user.displayAvatarURL({ dynamic: true })
+                },
                 fields: [
                     {
-                        name: '📈 Overview',
-                        value: [
-                            `👥 Total Members: ${totalMembers}`,
-                            `👤 Human Members: ${realMembers}`,
-                            `🤖 Bots: ${bots}`
-                        ].join('\n'),
-                        inline: false
+                        name: '🌐 Servers',
+                        value: `${serverCount}`,
+                        inline: true
                     },
                     {
-                        name: '👤 Members List',
-                        value: memberList || 'No members found',
-                        inline: false
+                        name: '⌨️ Commands Used',
+                        value: `${commandUsageCount}`,
+                        inline: true
                     },
                     {
-                        name: '🤖 Bots List',
-                        value: botList || 'No bots found',
-                        inline: false
+                        name: '⏱️ Uptime',
+                        value: formatUptime(client.uptime),
+                        inline: true
                     }
                 ],
-                timestamp: new Date(),
                 footer: {
-                    text: `Server: ${interaction.guild.name}`
-                }
+                    text: `Bot ID: ${client.user.id}`
+                },
+                timestamp: new Date()
             };
             
-            await interaction.reply({ embeds: [membersEmbed] });
-        } catch (error) {
-            console.error('Error in showmembers command:', error);
+            await interaction.reply({ embeds: [statsEmbed] });
+        }
+
+        if (interaction.commandName === 'rules') {
+            if (!hasPermission(interaction.member)) {
+                await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
+                return;
+            }
+
+            // Get the verification role
+            const verificationRole = interaction.options.getRole('verification_role');
+            
+            // Store the user and role in the waiting map
+            waitingForRulesMessage.set(interaction.user.id, {
+                channelId: interaction.channelId,
+                roleId: verificationRole.id,
+                timestamp: Date.now() // To potentially expire old requests
+            });
+            
+            // Ask the user to provide the rules message
             await interaction.reply({ 
-                content: '❌ An error occurred while fetching member information.', 
+                content: `Please type your rules message now. Your next message in this channel will be used as the rules content with verification buttons.`,
                 ephemeral: true 
             });
         }
+
+        if (interaction.commandName === 'showmembers') {
+            try {
+                // Fetch all members to ensure we have the latest data
+                await interaction.guild.members.fetch();
+                
+                // Get all members
+                const allMembers = interaction.guild.members.cache;
+                
+                // Calculate counts
+                const totalMembers = allMembers.size;
+                const bots = allMembers.filter(member => member.user.bot).size;
+                const realMembers = totalMembers - bots;
+                
+                // Create lists of members and bots
+                const memberList = allMembers
+                    .filter(member => !member.user.bot)
+                    .map(member => `${member.user.tag}`)
+                    .sort()
+                    .join('\n');
+                
+                const botList = allMembers
+                    .filter(member => member.user.bot)
+                    .map(member => `${member.user.tag}`)
+                    .sort()
+                    .join('\n');
+                
+                // Create embed
+                const membersEmbed = {
+                    color: 0x0099FF,
+                    title: '📊 Server Member Statistics',
+                    fields: [
+                        {
+                            name: '📈 Overview',
+                            value: [
+                                `👥 Total Members: ${totalMembers}`,
+                                `👤 Human Members: ${realMembers}`,
+                                `🤖 Bots: ${bots}`
+                            ].join('\n'),
+                            inline: false
+                        },
+                        {
+                            name: '👤 Members List',
+                            value: memberList || 'No members found',
+                            inline: false
+                        },
+                        {
+                            name: '🤖 Bots List',
+                            value: botList || 'No bots found',
+                            inline: false
+                        }
+                    ],
+                    timestamp: new Date(),
+                    footer: {
+                        text: `Server: ${interaction.guild.name}`
+                    }
+                };
+                
+                await interaction.reply({ embeds: [membersEmbed] });
+            } catch (error) {
+                console.error('Error in showmembers command:', error);
+                await interaction.reply({ 
+                    content: '❌ An error occurred while fetching member information.', 
+                    ephemeral: true 
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error in interactionCreate:', error);
+        await interaction.reply({ content: '❌ An error occurred! Please contact an administrator.', ephemeral: true });
     }
 });
 
