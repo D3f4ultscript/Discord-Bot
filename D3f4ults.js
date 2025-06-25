@@ -1,19 +1,22 @@
-// ==== START: Webserver für UptimeRobot ====
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
 const express = require("express");
+require('dotenv').config();
+
+// ==== START: Webserver für UptimeRobot ====
 const app = express();
-const port = 3000;
+const PORT = process.env.PORT || 3001; // Using different port than TicketBot
 
 app.get("/", (req, res) => {
-  res.send("✅ Bot läuft – bereit für UptimeRobot!");
+  res.send("D3f Bot is running!");
 });
 
-app.listen(port, () => {
-  console.log(`✅ Webserver aktiv unter Port ${port}`);
+app.listen(PORT, () => {
+  console.log('\n=== UPTIME ROBOT SETUP ===');
+  console.log('Add this URL to UptimeRobot:');
+  console.log(`🔗 https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
+  console.log('========================\n');
 });
-// ==== ENDE Webserver ====
-
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagBits } = require('discord.js');
-require('dotenv').config();
+// ==== END: Webserver für UptimeRobot ====
 
 // Create bot with necessary intents
 const client = new Client({
@@ -57,14 +60,8 @@ if (!token || !clientId) {
 // Define Slash Commands
 const commands = [
     new SlashCommandBuilder()
-        .setName('script')
-        .setDescription('Outputs the D3f4ult Hub Script'),
-    new SlashCommandBuilder()
         .setName('chatclear')
         .setDescription('Deletes all messages in the channel (requires special role)'),
-    new SlashCommandBuilder()
-        .setName('info')
-        .setDescription('Shows server info and script'),
     new SlashCommandBuilder()
         .setName('help')
         .setDescription('Shows all available commands and their descriptions'),
@@ -125,7 +122,10 @@ const commands = [
         .addRoleOption(option =>
             option.setName('verification_role')
                 .setDescription('The role to give when users accept the rules')
-                .setRequired(true))
+                .setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('showmembers')
+        .setDescription('Shows all members, bots, and member count without bots')
 ];
 
 // Event when bot is ready
@@ -167,19 +167,6 @@ client.on('interactionCreate', async interaction => {
     // Increment command usage counter
     commandUsageCount++;
 
-    if (interaction.commandName === 'script') {
-        const scriptCode = '```lua\nloadstring(game:HttpGet("https://raw.githubusercontent.com/D3f4ultscript/Scripts-for-D3f4ult-Hub/refs/heads/main/Hub.lua"))()\n```';
-        await interaction.reply(`${interaction.user}\n${scriptCode}`);
-    }
-    
-    if (interaction.commandName === 'info') {
-        const scriptCode = '```lua\nloadstring(game:HttpGet("https://raw.githubusercontent.com/D3f4ultscript/Scripts-for-D3f4ult-Hub/refs/heads/main/Hub.lua"))()\n```';
-        const serverInvite = 'https://discord.gg/2ynN9zcVFk';
-        const ownerInfo = '**Server and Script Owner: D3f4ult**';
-        
-        await interaction.reply(`${interaction.user}\n\n${serverInvite}\n\n${scriptCode}\n\n${ownerInfo}`);
-    }
-    
     if (interaction.commandName === 'chatclear') {
         if (!hasPermission(interaction.member)) {
             await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
@@ -211,54 +198,41 @@ client.on('interactionCreate', async interaction => {
         const helpEmbed = {
             color: 0x0099FF,
             title: '📚 Available Commands',
-            description: 'Here are all available commands:',
+            description: 'Here are all available commands:\n🔒 = Requires special role',
             fields: [
-                // Regular commands (available to everyone)
                 {
                     name: '/help',
                     value: 'Shows this help message with all available commands',
                 },
                 {
-                    name: '/script',
-                    value: 'Outputs the D3f4ult Hub Script',
-                },
-                {
-                    name: '/info',
-                    value: 'Shows server information and the script',
+                    name: '/showmembers',
+                    value: 'Shows all members, bots, and member count statistics',
                 },
                 {
                     name: '/infostats',
                     value: 'Shows statistics about the bot',
                 },
-                // Restricted commands (require special role)
                 {
-                    name: '🔒 RESTRICTED COMMANDS',
-                    value: 'The following commands require special roles to use:',
-                },
-                {
-                    name: '/chatclear',
+                    name: '🔒 /chatclear',
                     value: 'Deletes all messages in the channel',
                 },
                 {
-                    name: '/createrole',
+                    name: '🔒 /createrole',
                     value: 'Creates a role with predefined permissions',
                 },
                 {
-                    name: '/giverole',
-                    value: 'Gives a role to a member',
+                    name: '🔒 /giverole',
+                    value: 'Gives a role to a member or everyone',
                 },
                 {
-                    name: '/removerole',
-                    value: 'Removes a role from a member',
+                    name: '🔒 /removerole',
+                    value: 'Removes a role from a member or everyone',
                 },
                 {
-                    name: '/rules',
+                    name: '🔒 /rules',
                     value: 'Sets up a rules message with verification buttons',
                 }
             ],
-            footer: {
-                text: 'Commands marked with 🔒 require specific roles to use'
-            },
             timestamp: new Date(),
         };
 
@@ -621,6 +595,73 @@ client.on('interactionCreate', async interaction => {
             content: `Please type your rules message now. Your next message in this channel will be used as the rules content with verification buttons.`,
             ephemeral: true 
         });
+    }
+
+    if (interaction.commandName === 'showmembers') {
+        try {
+            // Fetch all members to ensure we have the latest data
+            await interaction.guild.members.fetch();
+            
+            // Get all members
+            const allMembers = interaction.guild.members.cache;
+            
+            // Calculate counts
+            const totalMembers = allMembers.size;
+            const bots = allMembers.filter(member => member.user.bot).size;
+            const realMembers = totalMembers - bots;
+            
+            // Create lists of members and bots
+            const memberList = allMembers
+                .filter(member => !member.user.bot)
+                .map(member => `${member.user.tag}`)
+                .sort()
+                .join('\n');
+            
+            const botList = allMembers
+                .filter(member => member.user.bot)
+                .map(member => `${member.user.tag}`)
+                .sort()
+                .join('\n');
+            
+            // Create embed
+            const membersEmbed = {
+                color: 0x0099FF,
+                title: '📊 Server Member Statistics',
+                fields: [
+                    {
+                        name: '📈 Overview',
+                        value: [
+                            `👥 Total Members: ${totalMembers}`,
+                            `👤 Human Members: ${realMembers}`,
+                            `🤖 Bots: ${bots}`
+                        ].join('\n'),
+                        inline: false
+                    },
+                    {
+                        name: '👤 Members List',
+                        value: memberList || 'No members found',
+                        inline: false
+                    },
+                    {
+                        name: '🤖 Bots List',
+                        value: botList || 'No bots found',
+                        inline: false
+                    }
+                ],
+                timestamp: new Date(),
+                footer: {
+                    text: `Server: ${interaction.guild.name}`
+                }
+            };
+            
+            await interaction.reply({ embeds: [membersEmbed] });
+        } catch (error) {
+            console.error('Error in showmembers command:', error);
+            await interaction.reply({ 
+                content: '❌ An error occurred while fetching member information.', 
+                ephemeral: true 
+            });
+        }
     }
 });
 
