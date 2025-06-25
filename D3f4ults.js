@@ -24,6 +24,8 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers,  // Added for member fetching
+        GatewayIntentBits.GuildPresences // Added for member status
     ],
 });
 
@@ -47,8 +49,8 @@ function hasPermission(member) {
         return true;
     }
     
-    // Check if the user has any of the required roles
-    return member.roles.cache.some(role => allowedRoleIds.includes(role.id));
+    // Check if the user has administrator permission
+    return member.permissions.has(PermissionFlagsBits.Administrator);
 }
 
 // Überprüfe ob Token und Client ID vorhanden sind
@@ -629,28 +631,26 @@ client.on('interactionCreate', async interaction => {
 
         if (interaction.commandName === 'showmembers') {
             try {
-                // Fetch all members to ensure we have the latest data
-                await interaction.guild.members.fetch();
+                await interaction.deferReply(); // Defer the reply as member fetching might take time
                 
-                // Get all members
-                const allMembers = interaction.guild.members.cache;
+                // Fetch all members to ensure we have the latest data
+                const members = await interaction.guild.members.fetch();
                 
                 // Calculate counts
-                const totalMembers = allMembers.size;
-                const bots = allMembers.filter(member => member.user.bot).size;
+                const totalMembers = members.size;
+                const bots = members.filter(member => member.user.bot).size;
                 const realMembers = totalMembers - bots;
                 
-                // Create lists of members and bots
-                const memberList = allMembers
+                // Create lists of members and bots (limited to avoid message length issues)
+                const memberList = members
                     .filter(member => !member.user.bot)
-                    .map(member => `${member.user.tag}`)
-                    .sort()
+                    .map(member => `${member.user.tag}${member.nickname ? ` (${member.nickname})` : ''}`)
+                    .slice(0, 30) // Limit to 30 members
                     .join('\n');
                 
-                const botList = allMembers
+                const botList = members
                     .filter(member => member.user.bot)
                     .map(member => `${member.user.tag}`)
-                    .sort()
                     .join('\n');
                 
                 // Create embed
@@ -666,16 +666,6 @@ client.on('interactionCreate', async interaction => {
                                 `🤖 Bots: ${bots}`
                             ].join('\n'),
                             inline: false
-                        },
-                        {
-                            name: '👤 Members List',
-                            value: memberList || 'No members found',
-                            inline: false
-                        },
-                        {
-                            name: '🤖 Bots List',
-                            value: botList || 'No bots found',
-                            inline: false
                         }
                     ],
                     timestamp: new Date(),
@@ -683,14 +673,32 @@ client.on('interactionCreate', async interaction => {
                         text: `Server: ${interaction.guild.name}`
                     }
                 };
+
+                // Add member list (if not too long)
+                if (memberList.length > 0) {
+                    membersEmbed.fields.push({
+                        name: `👤 Members (showing first 30)`,
+                        value: memberList.length > 1024 ? memberList.substring(0, 1020) + '...' : memberList,
+                        inline: false
+                    });
+                }
+
+                // Add bot list
+                if (botList.length > 0) {
+                    membersEmbed.fields.push({
+                        name: '🤖 Bots',
+                        value: botList.length > 1024 ? botList.substring(0, 1020) + '...' : botList,
+                        inline: false
+                    });
+                }
                 
-                await interaction.reply({ embeds: [membersEmbed] });
+                await interaction.editReply({ embeds: [membersEmbed] });
             } catch (error) {
                 console.error('Error in showmembers command:', error);
-                await interaction.reply({ 
-                    content: '❌ An error occurred while fetching member information.', 
-                    ephemeral: true 
-                });
+                const errorMessage = interaction.deferred ? 
+                    interaction.editReply({ content: '❌ An error occurred while fetching member information.', ephemeral: true }) :
+                    interaction.reply({ content: '❌ An error occurred while fetching member information.', ephemeral: true });
+                await errorMessage;
             }
         }
     } catch (error) {
