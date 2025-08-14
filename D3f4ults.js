@@ -710,98 +710,106 @@ client.on('interactionCreate', async interaction => {
 // Event for Button Interactions
 client.on('interactionCreate', async interaction => {
     if (interaction.isButton()) {
-        if (interaction.customId === 'confirm_clear') {
-            if (!hasPermission(interaction.member)) {
-                await interaction.update({ content: '❌ No permission! You need specific roles to clear the chat.', components: [] });
-                return;
-            }
-            
-            try {
-                await interaction.update({ content: '🔄 Clearing channel...', components: [] });
-                
-                // Delete all messages
-                let deleted;
-                do {
-                    deleted = await interaction.channel.bulkDelete(100, true);
-                } while (deleted.size > 0);
-                
-                await interaction.followUp({ content: '✅ Channel has been successfully cleared!', ephemeral: true });
-            } catch (error) {
-                console.error('Error while deleting:', error);
-                await interaction.followUp({ content: '❌ Error while deleting messages!', ephemeral: true });
-            }
-        }
-        
-        if (interaction.customId === 'cancel_clear') {
-            await interaction.update({ content: 'Channel clearing cancelled.', components: [] });
-        }
-
-        // Handle rule acceptance
-        if (interaction.customId.startsWith('accept_rules:')) {
-            try {
-                // Extract the role ID from the button custom ID
-                const roleId = interaction.customId.split(':')[1];
-                
-                // Get the verification role
-                const verificationRole = interaction.guild.roles.cache.get(roleId);
-                
-                if (!verificationRole) {
-                    await interaction.reply({ content: '❌ Verification role not found! It may have been deleted.', ephemeral: true });
+        try {
+            if (interaction.customId === 'confirm_clear') {
+                if (!hasPermission(interaction.member)) {
+                    await interaction.update({ content: '❌ No permission! You need specific roles to clear the chat.', components: [] });
                     return;
                 }
                 
-                // Add the role to the user
-                await interaction.member.roles.add(verificationRole);
-                
-                // Send confirmation in the channel
-                await interaction.reply({ content: `✅ You have been verified with the ${verificationRole.name} role! Thank you for accepting the rules.`, ephemeral: true });
-                
-                // Send DM to the user
                 try {
-                    await interaction.user.send({
-                        content: `✅ **Verification Successful!**\n\nYou are now verified in **${interaction.guild.name}** with the ${verificationRole.name} role.\n\nBy accepting the rules, you agree to follow them at all times. Failure to comply may result in warnings or other penalties.\n\nIf you change your mind, you can use the decline button to remove your verification.`
-                    });
-                } catch (dmError) {
-                    console.error('Could not send DM to user:', dmError);
-                    // If we can't DM the user, we'll just continue without error
+                    await interaction.update({ content: '🔄 Clearing channel...', components: [] });
+                    
+                    // Delete all messages
+                    let deleted;
+                    do {
+                        deleted = await interaction.channel.bulkDelete(100, true);
+                    } while (deleted.size > 0);
+                    
+                    await interaction.followUp({ content: '✅ Channel has been successfully cleared!', ephemeral: true });
+                } catch (error) {
+                    console.error('Error while deleting:', error);
+                    await interaction.followUp({ content: '❌ Error while deleting messages!', ephemeral: true });
                 }
-            } catch (error) {
-                console.error('Error during verification:', error);
-                await interaction.reply({ content: '❌ Failed to verify you! Please contact an administrator.', ephemeral: true });
             }
-        }
-        
-        // Handle rule declination
-        if (interaction.customId.startsWith('decline_rules:')) {
-            try {
-                // Extract the role ID from the button custom ID
-                const roleId = interaction.customId.split(':')[1];
-                
-                // Get the verification role
-                const verificationRole = interaction.guild.roles.cache.get(roleId);
-                
-                if (verificationRole) {
-                    // Remove the role from the user if they have it
-                    if (interaction.member.roles.cache.has(verificationRole.id)) {
-                        await interaction.member.roles.remove(verificationRole);
-                    }
-                }
-                
-                // Send confirmation
-                await interaction.reply({ content: '❌ You have declined the rules. Some features may be restricted.', ephemeral: true });
-                
-                // Send DM to the user
+            
+            if (interaction.customId === 'cancel_clear') {
+                await interaction.update({ content: 'Channel clearing cancelled.', components: [] });
+            }
+
+            // Handle rule acceptance
+            if (interaction.customId.startsWith('accept_rules:')) {
                 try {
-                    await interaction.user.send({
-                        content: `❌ **Rules Declined**\n\nYou have declined the rules in **${interaction.guild.name}**.\n\nSome features and channels may be restricted. If you change your mind, you can verify again by accepting the rules.`
-                    });
-                } catch (dmError) {
-                    console.error('Could not send DM to user:', dmError);
-                    // If we can't DM the user, we'll just continue without error
+                    // Extract the role ID from the button custom ID
+                    const roleId = interaction.customId.split(':')[1];
+                    
+                    // Get the verification role
+                    const verificationRole = interaction.guild.roles.cache.get(roleId);
+                    
+                    if (!verificationRole) {
+                        await interaction.reply({ content: '❌ Verification role not found! It may have been deleted.', ephemeral: true });
+                        return;
+                    }
+                    
+                    // Add the role to the user
+                    await interaction.member.roles.add(verificationRole);
+                    
+                    // Send confirmation in the channel
+                    await interaction.reply({ content: `✅ You have been verified with the ${verificationRole.name} role! Thank you for accepting the rules.`, ephemeral: true });
+                    
+                    // Send DM to the user
+                    try {
+                        await interaction.user.send({
+                            content: `✅ **Verification Successful!**\n\nYou are now verified in **${interaction.guild.name}** with the ${verificationRole.name} role.\n\nBy accepting the rules, you agree to follow them at all times. Failure to comply may result in warnings or other penalties.\n\nIf you change your mind, you can use the decline button to remove your verification.`
+                        });
+                    } catch (dmError) {
+                        console.error('Could not send DM to user:', dmError);
+                    }
+                } catch (error) {
+                    console.error('Error during verification:', error);
+                    await interaction.reply({ content: '❌ Failed to verify you! Please contact an administrator.', ephemeral: true });
                 }
-            } catch (error) {
-                console.error('Error during rule declination:', error);
-                await interaction.reply({ content: '❌ An error occurred! Please contact an administrator.', ephemeral: true });
+            }
+            
+            // Handle rule declination
+            if (interaction.customId.startsWith('decline_rules:')) {
+                try {
+                    // Extract the role ID from the button custom ID
+                    const roleId = interaction.customId.split(':')[1];
+                    
+                    // Get the verification role
+                    const verificationRole = interaction.guild.roles.cache.get(roleId);
+                    
+                    if (verificationRole) {
+                        // Remove the role from the user if they have it
+                        if (interaction.member.roles.cache.has(verificationRole.id)) {
+                            await interaction.member.roles.remove(verificationRole);
+                        }
+                    }
+                    
+                    // Send confirmation
+                    await interaction.reply({ content: '❌ You have declined the rules. Some features may be restricted.', ephemeral: true });
+                    
+                    // Send DM to the user
+                    try {
+                        await interaction.user.send({
+                            content: `❌ **Rules Declined**\n\nYou have declined the rules in **${interaction.guild.name}**.\n\nSome features and channels may be restricted. If you change your mind, you can verify again by accepting the rules.`
+                        });
+                    } catch (dmError) {
+                        console.error('Could not send DM to user:', dmError);
+                    }
+                } catch (error) {
+                    console.error('Error during rule declination:', error);
+                    await interaction.reply({ content: '❌ An error occurred! Please contact an administrator.', ephemeral: true });
+                }
+            }
+        } catch (generalError) {
+            console.error('General button interaction error:', generalError);
+            try {
+                await interaction.reply({ content: '❌ An unexpected error occurred. Please try again.', ephemeral: true });
+            } catch {
+                // Fallback if reply fails
+                console.error('Could not send error message');
             }
         }
     }

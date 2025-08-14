@@ -8,9 +8,9 @@
     "dev": "node D3f4ults.js"
   },
   "dependencies": {
-    "discord.js": "^14.14.1",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2"
+    "discord.js": "^14.21.0",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2"
   },
   "engines": {
     "node": ">=16.x"
