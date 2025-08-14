@@ -18,15 +18,23 @@ app.listen(PORT, () => {
 });
 // ==== END: Webserver für UptimeRobot ====
 
-// Create bot with necessary intents
+// Create bot with comprehensive intents
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers,  // Added for member fetching
-        GatewayIntentBits.GuildPresences // Added for member status
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildPresences,
+        GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.DirectMessages
     ],
+    // Add these lines for more robust connection
+    ws: {
+        properties: {
+            $browser: "Discord iOS"
+        }
+    }
 });
 
 const token = process.env.DISCORD_TOKEN;
@@ -130,21 +138,31 @@ const commands = [
         .setDescription('Shows all members, bots, and member count without bots')
 ];
 
-// Error handling
-client.on('error', error => {
-    console.error('Discord client error:', error);
+// Zusätzliche Fehlerbehandlung für Client-Verbindung
+client.on('error', (error) => {
+    console.error('Discord Client Error:', error);
 });
 
-process.on('unhandledRejection', error => {
-    console.error('Unhandled promise rejection:', error);
+client.on('warn', (warning) => {
+    console.warn('Discord Client Warning:', warning);
 });
 
-// Event when bot is ready
+client.on('disconnect', (event) => {
+    console.error(`Discord disconnected with code ${event.code}. Reason: ${event.reason}`);
+});
+
+// Verbesserte Ready-Ereignisbehandlung
 client.once('ready', async () => {
     console.log(`\n=== BOT STARTUP ===`);
     console.log(`✅ Bot is online as ${client.user.tag}!`);
     console.log(`📊 Serving ${client.guilds.cache.size} servers`);
+    console.log(`🌐 Bot User ID: ${client.user.id}`);
     console.log(`==================\n`);
+    
+    // Zusätzliche Diagnose-Informationen
+    client.guilds.cache.forEach(guild => {
+        console.log(`Server: ${guild.name} (ID: ${guild.id})`);
+    });
     
     // Register Slash Commands
     const rest = new REST({ version: '10' }).setToken(token);
