@@ -10,5 +10,7 @@ services:
         sync: false
       - key: CLIENT_ID
         sync: false
+      - key: UPDATE_WEBHOOK_URL
+        sync: false
       - key: NODE_VERSION
         value: 16.20.0

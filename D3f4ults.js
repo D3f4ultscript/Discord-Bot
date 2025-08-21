@@ -215,32 +215,6 @@ client.on('interactionCreate', async interaction => {
 client.on('interactionCreate', async interaction => {
     if (interaction.isButton()) {
         try {
-            if (interaction.customId === 'confirm_clear') {
-                if (!hasPermission(interaction.member)) {
-                    await interaction.update({ content: '❌ No permission! You need specific roles to clear the chat.', components: [] });
-                    return;
-                }
-                
-                try {
-                    await interaction.update({ content: '🔄 Clearing channel...', components: [] });
-                    
-                    // Delete all messages
-                    let deleted;
-                    do {
-                        deleted = await interaction.channel.bulkDelete(100, true);
-                    } while (deleted.size > 0);
-                    
-                    await interaction.followUp({ content: '✅ Channel has been successfully cleared!', ephemeral: true });
-                } catch (error) {
-                    console.error('Error while deleting:', error);
-                    await interaction.followUp({ content: '❌ Error while deleting messages!', ephemeral: true });
-                }
-            }
-            
-            if (interaction.customId === 'cancel_clear') {
-                await interaction.update({ content: 'Channel clearing cancelled.', components: [] });
-            }
-
             // Handle rule acceptance
             if (interaction.customId.startsWith('accept_rules:')) {
                 try {
