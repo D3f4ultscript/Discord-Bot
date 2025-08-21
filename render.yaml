@@ -13,4 +13,6 @@ services:
       - key: UPDATE_WEBHOOK_URL
         sync: false
       - key: NODE_VERSION
-        value: 16.20.0
+        value: 20.16.0
+      - key: UPDATE_TEST_ON_BOOT
+        value: true
