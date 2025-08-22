@@ -173,7 +173,7 @@ client.on('interactionCreate', async interaction => {
 
         if (interaction.commandName === 'rules') {
             if (!hasPermission(interaction.member)) {
-                await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
+                await interaction.reply({ content: 'You don\'t have permission to use this command.', ephemeral: true });
                 return;
             }
 
@@ -196,7 +196,7 @@ client.on('interactionCreate', async interaction => {
         
         if (interaction.commandName === 'msg') {
             if (!hasPermission(interaction.member)) {
-                await interaction.reply({ content: '❌ You do not have permission to use this command! You need specific roles.', ephemeral: true });
+                await interaction.reply({ content: 'You don\'t have permission to use this command.', ephemeral: true });
                 return;
             }
             
@@ -205,26 +205,26 @@ client.on('interactionCreate', async interaction => {
             
             // Validate channel
             if (!targetChannel || targetChannel.guildId !== interaction.guildId) {
-                await interaction.reply({ content: '❌ Invalid channel selected.', ephemeral: true });
+                await interaction.reply({ content: 'Invalid channel.', ephemeral: true });
                 return;
             }
             
             if (!targetChannel.isTextBased?.()) {
-                await interaction.reply({ content: '❌ Selected channel is not a text channel.', ephemeral: true });
+                await interaction.reply({ content: 'That\'s not a text channel.', ephemeral: true });
                 return;
             }
             
             try {
                 await targetChannel.send({ content: messageContent });
-                await interaction.reply({ content: `✅ Message sent to <#${targetChannel.id}>.`, ephemeral: true });
+                await interaction.reply({ content: `Message sent to <#${targetChannel.id}>`, ephemeral: true });
             } catch (error) {
                 console.error('Error sending message to channel:', error);
-                await interaction.reply({ content: '❌ Failed to send the message. Check my permissions.', ephemeral: true });
+                await interaction.reply({ content: 'Failed to send message. Check my permissions.', ephemeral: true });
             }
         }
     } catch (error) {
         console.error('Error in interactionCreate:', error);
-        await interaction.reply({ content: '❌ An error occurred! Please contact an administrator.', ephemeral: true });
+        await interaction.reply({ content: 'Something went wrong. Contact an admin.', ephemeral: true });
     }
 });
 
@@ -242,7 +242,7 @@ client.on('interactionCreate', async interaction => {
                     const verificationRole = interaction.guild.roles.cache.get(roleId);
                     
                     if (!verificationRole) {
-                        await interaction.reply({ content: '❌ Verification role not found! It may have been deleted.', ephemeral: true });
+                        await interaction.reply({ content: 'Verification role not found.', ephemeral: true });
                         return;
                     }
                     
@@ -250,19 +250,19 @@ client.on('interactionCreate', async interaction => {
                     await interaction.member.roles.add(verificationRole);
                     
                     // Send confirmation in the channel
-                    await interaction.reply({ content: `✅ You have been verified with the ${verificationRole.name} role! Thank you for accepting the rules.`, ephemeral: true });
+                    await interaction.reply({ content: `Verified! You now have the ${verificationRole.name} role.`, ephemeral: true });
                     
                     // Send DM to the user
                     try {
                         await interaction.user.send({
-                            content: `✅ **Verification Successful!**\n\nYou are now verified in **${interaction.guild.name}** with the ${verificationRole.name} role.\n\nBy accepting the rules, you agree to follow them at all times. Failure to comply may result in warnings or other penalties.\n\nIf you change your mind, you can use the decline button to remove your verification.`
+                            content: `**Verified!**\n\nYou now have the ${verificationRole.name} role in **${interaction.guild.name}**.\n\nFollow the rules or you might get warned. Use the decline button if you change your mind.`
                         });
                     } catch (dmError) {
                         console.error('Could not send DM to user:', dmError);
                     }
                 } catch (error) {
                     console.error('Error during verification:', error);
-                    await interaction.reply({ content: '❌ Failed to verify you! Please contact an administrator.', ephemeral: true });
+                    await interaction.reply({ content: 'Failed to verify you. Contact an admin.', ephemeral: true });
                 }
             }
             
@@ -283,25 +283,25 @@ client.on('interactionCreate', async interaction => {
                     }
                     
                     // Send confirmation
-                    await interaction.reply({ content: '❌ You have declined the rules. Some features may be restricted.', ephemeral: true });
+                    await interaction.reply({ content: 'Rules declined. Some features may be restricted.', ephemeral: true });
                     
                     // Send DM to the user
                     try {
                         await interaction.user.send({
-                            content: `❌ **Rules Declined**\n\nYou have declined the rules in **${interaction.guild.name}**.\n\nSome features and channels may be restricted. If you change your mind, you can verify again by accepting the rules.`
+                            content: `**Rules Declined**\n\nYou declined the rules in **${interaction.guild.name}**.\n\nSome features may be restricted. Verify again if you change your mind.`
                         });
                     } catch (dmError) {
                         console.error('Could not send DM to user:', dmError);
                     }
                 } catch (error) {
                     console.error('Error during rule declination:', error);
-                    await interaction.reply({ content: '❌ An error occurred! Please contact an administrator.', ephemeral: true });
+                    await interaction.reply({ content: 'Something went wrong. Contact an admin.', ephemeral: true });
                 }
             }
         } catch (generalError) {
             console.error('General button interaction error:', generalError);
             try {
-                await interaction.reply({ content: '❌ An unexpected error occurred. Please try again.', ephemeral: true });
+                await interaction.reply({ content: 'Something went wrong. Try again.', ephemeral: true });
             } catch {
                 // Fallback if reply fails
                 console.error('Could not send error message');
@@ -327,12 +327,12 @@ client.on('messageCreate', async message => {
         
         const acceptButton = new ButtonBuilder()
             .setCustomId(acceptButtonId)
-            .setLabel('✅ Accept Rules / Verify')
+            .setLabel('Accept Rules / Verify')
             .setStyle(ButtonStyle.Success);
             
         const declineButton = new ButtonBuilder()
             .setCustomId(declineButtonId)
-            .setLabel('❌ Decline Rules')
+            .setLabel('Decline Rules')
             .setStyle(ButtonStyle.Danger);
             
         const row = new ActionRowBuilder()
@@ -354,14 +354,45 @@ client.on('messageCreate', async message => {
             });
             
             // Confirm to the user
-            await message.author.send(`✅ Rules message has been posted in <#${message.channelId}> with verification buttons.`).catch(() => {});
+            await message.author.send(`Rules message posted in <#${message.channelId}> with verification buttons.`).catch(() => {});
         } catch (error) {
             console.error('Error posting rules message:', error);
             // Try to notify the user
             await message.channel.send({ 
-                content: `❌ There was an error posting your rules message. Please try again.`,
+                content: `Error posting rules message. Try again.`,
                 ephemeral: true 
             }).catch(() => {});
+        }
+    }
+    
+    // Check if message contains "key" (case insensitive)
+    if (message.content.toLowerCase().includes('key')) {
+        try {
+            // Check if user has the required role
+            const hasRequiredRole = message.member.roles.cache.has('1274092938254876744');
+            
+            if (hasRequiredRole) {
+                // User has the role - send key channel DM
+                await message.author.send({
+                    content: `**Key Access**\n\nGet your key here:\nhttps://discord.com/channels/1274086892765188159/1382708528891822203`
+                });
+            } else {
+                // User doesn't have the role - send verification DM
+                await message.author.send({
+                    content: `**Verification Required**\n\nVerify yourself first here:\nhttps://discord.com/channels/1274086892765188159/1379545851772272811\n\nThen get your key here:\nhttps://discord.com/channels/1274086892765188159/1382708528891822203`
+                });
+            }
+        } catch (dmError) {
+            console.error('Could not send DM to user:', dmError);
+            // Optionally send a public message if DM fails
+            try {
+                await message.reply({ 
+                    content: 'Can\'t send you a DM. Check your privacy settings.',
+                    ephemeral: true 
+                });
+            } catch (replyError) {
+                console.error('Could not send reply either:', replyError);
+            }
         }
     }
 });
