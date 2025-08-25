@@ -367,28 +367,19 @@ client.on('messageCreate', async message => {
     
     // Check if message contains "key" (case insensitive)
     if (message.content.toLowerCase().includes('key')) {
+        // Determine content based on role
+        const hasRequiredRole = message.member.roles.cache.has('1274092938254876744');
+        const dmContent = hasRequiredRole
+            ? `**Key Access**\n\nGet your key here:\nhttps://discord.com/channels/1274086892765188159/1382708528891822203`
+            : `**Verification Required**\n\nVerify yourself first here:\nhttps://discord.com/channels/1274086892765188159/1379545851772272811\n\nThen get your key here:\nhttps://discord.com/channels/1274086892765188159/1382708528891822203`;
         try {
-            // Check if user has the required role
-            const hasRequiredRole = message.member.roles.cache.has('1274092938254876744');
-            
-            if (hasRequiredRole) {
-                // User has the role - send key channel DM
-                await message.author.send({
-                    content: `**Key Access**\n\nGet your key here:\nhttps://discord.com/channels/1274086892765188159/1382708528891822203`
-                });
-            } else {
-                // User doesn't have the role - send verification DM
-                await message.author.send({
-                    content: `**Verification Required**\n\nVerify yourself first here:\nhttps://discord.com/channels/1274086892765188159/1379545851772272811\n\nThen get your key here:\nhttps://discord.com/channels/1274086892765188159/1382708528891822203`
-                });
-            }
+            await message.author.send({ content: dmContent });
         } catch (dmError) {
             console.error('Could not send DM to user:', dmError);
-            // Optionally send a public message if DM fails
+            // Fallback: reply in channel with explanation and same content
             try {
                 await message.reply({ 
-                    content: 'Can\'t send you a DM. Check your privacy settings.',
-                    ephemeral: true 
+                    content: `Your DMs are disabled. Posting here instead:\n\n${dmContent}`
                 });
             } catch (replyError) {
                 console.error('Could not send reply either:', replyError);
