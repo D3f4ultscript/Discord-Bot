@@ -369,6 +369,32 @@ client.on('messageCreate', async message => {
     if (message.content.toLowerCase().includes('key')) {
         // Determine content based on role
         const hasRequiredRole = message.member.roles.cache.has('1274092938254876744');
+
+        // Helper to ping user in a channel and delete the message
+        async function pingUserInChannel(channelId, userId) {
+            try {
+                const channel = message.guild?.channels?.cache.get(channelId);
+                if (!channel || !channel.isTextBased?.()) return;
+                const sent = await channel.send({
+                    content: `<@${userId}>`,
+                    allowedMentions: { users: [userId] }
+                });
+                await sent.delete().catch(() => {});
+            } catch (err) {
+                console.error(`Failed to ping user ${userId} in channel ${channelId}:`, err);
+            }
+        }
+
+        // Perform pings based on role
+        if (hasRequiredRole) {
+            // Only ping in key channel
+            void pingUserInChannel('1382708528891822203', message.author.id);
+        } else {
+            // Ping in verify channel and key channel
+            void pingUserInChannel('1379545851772272811', message.author.id);
+            void pingUserInChannel('1382708528891822203', message.author.id);
+        }
+
         const dmContent = hasRequiredRole
             ? `**Key Access**\n\nGet your key here:\nhttps://discord.com/channels/1274086892765188159/1382708528891822203`
             : `**Verification Required**\n\nVerify yourself first here:\nhttps://discord.com/channels/1274086892765188159/1379545851772272811\n\nThen get your key here:\nhttps://discord.com/channels/1274086892765188159/1382708528891822203`;
