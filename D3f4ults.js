@@ -45,6 +45,7 @@ const client = new Client({
 
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.CLIENT_ID;
+const guildId = process.env.GUILD_ID;
 const updateWebhookUrl = process.env.UPDATE_WEBHOOK_URL || 'https://discord.com/api/webhooks/1408042991695826954/8kz-zZfDChy_xNkxw8WwupMYst0Ykt_Hbi1Nh0ecwdlYuATcNXV6eiwParSTGbZHFLLu';
 const updateTestOnBoot = String(process.env.UPDATE_TEST_ON_BOOT || 'false').toLowerCase() === 'true';
 
@@ -126,16 +127,22 @@ client.once('ready', async () => {
     
     // Register Slash Commands
     const rest = new REST({ version: '10' }).setToken(token);
-    
     try {
         console.log('Registering Slash Commands...');
-        
-        // Register commands globally
-        const data = await rest.put(
-            Routes.applicationCommands(clientId),
-            { body: commands },
-        );
-
+        let data;
+        if (guildId) {
+            console.log(`Using guild registration for faster updates (GUILD_ID=${guildId}).`);
+            data = await rest.put(
+                Routes.applicationGuildCommands(clientId, guildId),
+                { body: commands }
+            );
+        } else {
+            console.log('No GUILD_ID set. Registering commands globally (may take up to 1h to propagate).');
+            data = await rest.put(
+                Routes.applicationCommands(clientId),
+                { body: commands }
+            );
+        }
         console.log(`✅ Successfully registered ${data.length} slash commands!`);
         console.log('Registered commands:', data.map(cmd => cmd.name).join(', '));
     } catch (error) {
@@ -169,6 +176,7 @@ client.once('ready', async () => {
 // Event for Slash Commands
 client.on('interactionCreate', async interaction => {
     try {
+        console.log(`[interactionCreate] type=${interaction.type} guild=${interaction.guildId} command=${interaction.commandName || ''}`);
         if (!interaction.isChatInputCommand()) return;
 
         // Check if the interaction is still valid
@@ -179,6 +187,7 @@ client.on('interactionCreate', async interaction => {
 
         if (interaction.commandName === 'rules') {
             if (!hasPermission(interaction.member)) {
+                console.log(`[rules] missing permission user=${interaction.user.id}`);
                 await interaction.reply({ content: 'You don\'t have permission to use this command.', ephemeral: true });
                 return;
             }
@@ -202,6 +211,7 @@ client.on('interactionCreate', async interaction => {
         
         if (interaction.commandName === 'msg') {
             if (!hasPermission(interaction.member)) {
+                console.log(`[msg] missing permission user=${interaction.user.id}`);
                 await interaction.reply({ content: 'You don\'t have permission to use this command.', ephemeral: true });
                 return;
             }
