@@ -2,6 +2,12 @@ const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ActionRowB
 const express = require("express");
 require('dotenv').config();
 
+// Fetch fallback for Node < 18
+let fetch = global.fetch;
+if (!fetch) {
+    fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
+}
+
 // ==== START: Webserver für UptimeRobot ====
 const app = express();
 const PORT = process.env.PORT || 3001; // Using different port than TicketBot
