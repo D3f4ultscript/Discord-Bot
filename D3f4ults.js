@@ -2,12 +2,6 @@ const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ActionRowB
 const express = require("express");
 require('dotenv').config();
 
-// Fetch fallback for Node < 18
-let fetch = global.fetch;
-if (!fetch) {
-    fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
-}
-
 // ==== START: Webserver für UptimeRobot ====
 const app = express();
 const PORT = process.env.PORT || 3001; // Using different port than TicketBot
@@ -46,8 +40,6 @@ const client = new Client({
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.CLIENT_ID;
 const guildId = process.env.GUILD_ID;
-const updateWebhookUrl = process.env.UPDATE_WEBHOOK_URL || 'https://discord.com/api/webhooks/1408042991695826954/8kz-zZfDChy_xNkxw8WwupMYst0Ykt_Hbi1Nh0ecwdlYuATcNXV6eiwParSTGbZHFLLu';
-const updateTestOnBoot = String(process.env.UPDATE_TEST_ON_BOOT || 'false').toLowerCase() === 'true';
 
 // Permission config
 const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
@@ -157,20 +149,6 @@ client.once('ready', async () => {
         }
     }
 
-    // Start Roblox update checker after bot is ready
-    try {
-        startRobloxUpdateWatcher();
-        console.log('✅ Roblox update watcher started');
-    } catch (e) {
-        console.error('Failed to start Roblox update watcher:', e);
-    }
-
-    // Optional: test webhook on boot
-    if (updateTestOnBoot) {
-        const simulatedVersion = `test-${Date.now()}`;
-        console.log('🚀 UPDATE_TEST_ON_BOOT=true -> sending test update to webhook:', simulatedVersion);
-        await postUpdateToWebhook(simulatedVersion);
-    }
 });
 
 // Event for Slash Commands
@@ -442,85 +420,4 @@ function formatUptime(uptime) {
     const seconds = totalSeconds % 60;
     
     return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-}
-
-// =====================
-// Roblox Update Watcher
-// =====================
-const ROBLOX_VERSION_URL = 'https://setup.roblox.com/version';
-let lastRobloxVersion = null;
-
-async function fetchRobloxVersion() {
-    try {
-        const response = await fetch(ROBLOX_VERSION_URL, {
-            method: 'GET',
-            headers: {
-                'Accept': 'text/plain'
-            }
-        });
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-        const text = await response.text();
-        return text.trim();
-    } catch (error) {
-        console.error('Error fetching Roblox version:', error);
-        return null;
-    }
-}
-
-async function postUpdateToWebhook(newVersion) {
-    if (!updateWebhookUrl) {
-        console.warn('No UPDATE_WEBHOOK_URL configured');
-        return;
-    }
-
-    const embed = {
-        title: 'Roblox Update Detected',
-        description: 'A new Roblox client/build version was detected.',
-        color: 0x00AAFF,
-        fields: [
-            { name: 'Version', value: `\n${newVersion}` },
-            { name: 'Source', value: ROBLOX_VERSION_URL }
-        ],
-        timestamp: new Date().toISOString()
-    };
-
-    try {
-        const res = await fetch(updateWebhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ embeds: [embed], username: 'Update Tracker' })
-        });
-        if (!res.ok) {
-            const body = await res.text().catch(() => '');
-            throw new Error(`Webhook HTTP ${res.status} ${body}`);
-        }
-        console.log(`📣 Posted Roblox update ${newVersion} to webhook.`);
-    } catch (err) {
-        console.error('Failed to post to webhook:', err);
-    }
-}
-
-function startRobloxUpdateWatcher() {
-    // Immediate check on start
-    void checkOnce();
-    // Then poll every 5 minutes
-    const intervalMs = 5 * 60 * 1000;
-    setInterval(checkOnce, intervalMs);
-
-    async function checkOnce() {
-        const current = await fetchRobloxVersion();
-        if (!current) return;
-        if (lastRobloxVersion === null) {
-            lastRobloxVersion = current;
-            console.log(`Roblox current version: ${current}`);
-            return;
-        }
-        if (current !== lastRobloxVersion) {
-            console.log(`Roblox version changed: ${lastRobloxVersion} -> ${current}`);
-            lastRobloxVersion = current;
-            await postUpdateToWebhook(current);
-        }
-    }
 }
