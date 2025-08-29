@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const express = require("express");
 require('dotenv').config();
 
@@ -42,13 +42,21 @@ const clientId = process.env.CLIENT_ID;
 const guildId = process.env.GUILD_ID;
 
 // Permission config
-const allowedRoleIds = ['1274094855941001350', '1378458013492576368'];
 const allowedUserId = '972533051173240875';
 
-// Track users waiting to input rules messages
-const waitingForRulesMessage = new Map();
 // Track jailed users' previous roles for restoration
 const jailedPreviousRoles = new Map();
+
+// Helper: compact status embed
+function buildStatusEmbed(message, type = 'success') {
+    const color = type === 'success' ? 0x57F287 /* green */
+        : type === 'error' ? 0xED4245 /* red */
+        : 0x5865F2; /* blurple info */
+    const emoji = type === 'success' ? '✅' : type === 'error' ? '⚠️' : 'ℹ️';
+    return new EmbedBuilder()
+        .setDescription(`${emoji} ${message}`)
+        .setColor(color);
+}
 
 // Check if a user has permission to use restricted commands
 function hasPermission(member) {
@@ -67,50 +75,33 @@ if (!token || !clientId) {
     process.exit(1);
 }
 
-// Define Slash Commands (rules, msg, jail, unjail)
+// Slash Commands (jail, unjail)
 const commands = [
     new SlashCommandBuilder()
-        .setName('rules')
-        .setDescription('Sets up a rules message with verification buttons (requires special role)')
-        .addRoleOption(option =>
-            option.setName('verification_role')
-                .setDescription('The role to give when users accept the rules')
-                .setRequired(true)
-        ),
-    new SlashCommandBuilder()
-        .setName('msg')
-        .setDescription('Send a message to a selected channel (requires special role)')
-        .addChannelOption(option =>
-            option.setName('channel')
-                .setDescription('Channel to send the message to')
-                .addChannelTypes(ChannelType.GuildText)
-                .setRequired(true)
-        )
-        .addStringOption(option =>
-            option.setName('message')
-                .setDescription('The message content to send')
-                .setRequired(true)
-        ),
-    new SlashCommandBuilder()
         .setName('jail')
-        .setDescription('Entfernt alle Rollen und gibt die Jail-Rolle')
+        .setDescription('Jail a user')
         .addUserOption(option =>
             option.setName('user')
-                .setDescription('Der zu jailende User')
+                .setDescription('User to jail')
                 .setRequired(true)
         )
         .addStringOption(option =>
             option.setName('reason')
-                .setDescription('Grund (optional)')
+                .setDescription('Reason (optional)')
                 .setRequired(false)
         ),
     new SlashCommandBuilder()
         .setName('unjail')
-        .setDescription('Entfernt die Jail-Rolle und stellt alte Rollen wieder her')
+        .setDescription('Unjail a user')
         .addUserOption(option =>
             option.setName('user')
-                .setDescription('Der zu entjailende User')
+                .setDescription('User to unjail')
                 .setRequired(true)
+        )
+        .addStringOption(option =>
+            option.setName('reason')
+                .setDescription('Reason (optional)')
+                .setRequired(false)
         )
 ];
 
@@ -186,68 +177,16 @@ client.on('interactionCreate', async interaction => {
             return;
         }
 
-        if (interaction.commandName === 'rules') {
-            if (!hasPermission(interaction.member)) {
-                console.log(`[rules] missing permission user=${interaction.user.id}`);
-                await interaction.reply({ content: 'You don\'t have permission to use this command.', ephemeral: true });
-                return;
-            }
-
-            // Get the verification role
-            const verificationRole = interaction.options.getRole('verification_role');
-            
-            // Store the user and role in the waiting map
-            waitingForRulesMessage.set(interaction.user.id, {
-                channelId: interaction.channelId,
-                roleId: verificationRole.id,
-                timestamp: Date.now() // To potentially expire old requests
-            });
-            
-            // Ask the user to provide the rules message
-            await interaction.reply({ 
-                content: `Please type your rules message now. Your next message in this channel will be used as the rules content with verification buttons.`,
-                ephemeral: true 
-            });
-        }
-        
-        if (interaction.commandName === 'msg') {
-            if (!hasPermission(interaction.member)) {
-                console.log(`[msg] missing permission user=${interaction.user.id}`);
-                await interaction.reply({ content: 'You don\'t have permission to use this command.', ephemeral: true });
-                return;
-            }
-            
-            const targetChannel = interaction.options.getChannel('channel');
-            const messageContent = interaction.options.getString('message');
-            
-            // Validate channel
-            if (!targetChannel || targetChannel.guildId !== interaction.guildId) {
-                await interaction.reply({ content: 'Invalid channel.', ephemeral: true });
-                return;
-            }
-            
-            if (!targetChannel.isTextBased?.()) {
-                await interaction.reply({ content: 'That\'s not a text channel.', ephemeral: true });
-                return;
-            }
-            
-            try {
-                await targetChannel.send({ content: messageContent });
-                await interaction.reply({ content: `Message sent to <#${targetChannel.id}>`, ephemeral: true });
-            } catch (error) {
-                console.error('Error sending message to channel:', error);
-                await interaction.reply({ content: 'Failed to send message. Check my permissions.', ephemeral: true });
-            }
-        }
+        // no other commands
         
         if (interaction.commandName === 'jail') {
             if (!hasPermission(interaction.member)) {
-                await interaction.reply({ content: 'You don\'t have permission to use this command.', ephemeral: true });
+                await interaction.reply({ embeds: [buildStatusEmbed('No permission.', 'error')], ephemeral: true });
                 return;
             }
 
             const targetUser = interaction.options.getUser('user', true);
-            const reason = interaction.options.getString('reason') || 'No reason provided';
+            const reason = interaction.options.getString('reason') || null;
             const jailRoleId = '1410930206377775185';
 
             try {
@@ -257,13 +196,13 @@ client.on('interactionCreate', async interaction => {
                 // Validate role manageability
                 const me = await guild.members.fetchMe();
                 if (member.roles.highest.position >= me.roles.highest.position && guild.ownerId !== me.id) {
-                    await interaction.reply({ content: 'I cannot modify roles for this user due to role hierarchy.', ephemeral: true });
+                    await interaction.reply({ embeds: [buildStatusEmbed('Role hierarchy.', 'error')], ephemeral: true });
                     return;
                 }
 
                 const jailRole = guild.roles.cache.get(jailRoleId);
                 if (!jailRole) {
-                    await interaction.reply({ content: 'Jail role not found. Please check the role ID.', ephemeral: true });
+                    await interaction.reply({ embeds: [buildStatusEmbed('Jail role missing.', 'error')], ephemeral: true });
                     return;
                 }
 
@@ -276,24 +215,26 @@ client.on('interactionCreate', async interaction => {
                 // Set only the jail role (removes others)
                 await member.roles.set([jailRoleId]);
 
-                await interaction.reply({ content: `🔒 ${member.user.tag} wurde gejailt. Grund: ${reason}`, ephemeral: false });
+                const reasonText = reason ? ` (${reason})` : '';
+                await interaction.reply({ embeds: [buildStatusEmbed(`${interaction.user.tag} jailed ${member.user.tag}${reasonText}.`, 'success')], ephemeral: false });
             } catch (err) {
                 console.error('Error jailing user:', err);
                 try {
-                    await interaction.reply({ content: 'Fehler beim Jail. Prüfe meine Berechtigungen.', ephemeral: true });
+                    await interaction.reply({ embeds: [buildStatusEmbed('Jail failed.', 'error')], ephemeral: true });
                 } catch {}
             }
         }
 
         if (interaction.commandName === 'unjail') {
             if (!hasPermission(interaction.member)) {
-                await interaction.reply({ content: 'You don\'t have permission to use this command.', ephemeral: true });
+                await interaction.reply({ embeds: [buildStatusEmbed('No permission.', 'error')], ephemeral: true });
                 return;
             }
 
             const targetUser = interaction.options.getUser('user', true);
             const jailRoleId = '1410930206377775185';
             const mustHaveRoleId = '1274092938254876744';
+            const reason = interaction.options.getString('reason') || null;
 
             try {
                 const guild = interaction.guild;
@@ -302,7 +243,7 @@ client.on('interactionCreate', async interaction => {
                 // Validate role manageability
                 const me = await guild.members.fetchMe();
                 if (member.roles.highest.position >= me.roles.highest.position && guild.ownerId !== me.id) {
-                    await interaction.reply({ content: 'I cannot modify roles for this user due to role hierarchy.', ephemeral: true });
+                    await interaction.reply({ embeds: [buildStatusEmbed('Role hierarchy.', 'error')], ephemeral: true });
                     return;
                 }
 
@@ -325,205 +266,22 @@ client.on('interactionCreate', async interaction => {
                 await member.roles.set(validRoleIds);
                 jailedPreviousRoles.delete(member.id);
 
-                await interaction.reply({ content: `🔓 ${member.user.tag} wurde entjailt und Rollen wiederhergestellt.`, ephemeral: false });
+                const reasonText = reason ? ` (${reason})` : '';
+                await interaction.reply({ embeds: [buildStatusEmbed(`${interaction.user.tag} unjailed ${member.user.tag}${reasonText}.`, 'success')], ephemeral: false });
             } catch (err) {
                 console.error('Error unjailing user:', err);
                 try {
-                    await interaction.reply({ content: 'Fehler beim Unjail. Prüfe meine Berechtigungen.', ephemeral: true });
+                    await interaction.reply({ embeds: [buildStatusEmbed('Unjail failed.', 'error')], ephemeral: true });
                 } catch {}
             }
         }
     } catch (error) {
         console.error('Error in interactionCreate:', error);
-        await interaction.reply({ content: 'Something went wrong. Contact an admin.', ephemeral: true });
+        await interaction.reply({ embeds: [buildStatusEmbed('Error.', 'error')], ephemeral: true });
     }
 });
 
-// Event for Button Interactions
-client.on('interactionCreate', async interaction => {
-    if (interaction.isButton()) {
-        try {
-            // Handle rule acceptance
-            if (interaction.customId.startsWith('accept_rules:')) {
-                try {
-                    // Extract the role ID from the button custom ID
-                    const roleId = interaction.customId.split(':')[1];
-                    
-                    // Get the verification role
-                    const verificationRole = interaction.guild.roles.cache.get(roleId);
-                    
-                    if (!verificationRole) {
-                        await interaction.reply({ content: 'Verification role not found.', ephemeral: true });
-                        return;
-                    }
-                    
-                    // Add the role to the user
-                    await interaction.member.roles.add(verificationRole);
-                    
-                    // Send confirmation in the channel
-                    await interaction.reply({ content: `Verified! You now have the ${verificationRole.name} role.`, ephemeral: true });
-                    
-                    // Send DM to the user
-                    try {
-                        await interaction.user.send({
-                            content: `**Verified!**\n\nYou now have the ${verificationRole.name} role in **${interaction.guild.name}**.\n\nFollow the rules or you might get warned. Use the decline button if you change your mind.`
-                        });
-                    } catch (dmError) {
-                        console.error('Could not send DM to user:', dmError);
-                    }
-                } catch (error) {
-                    console.error('Error during verification:', error);
-                    await interaction.reply({ content: 'Failed to verify you. Contact an admin.', ephemeral: true });
-                }
-            }
-            
-            // Handle rule declination
-            if (interaction.customId.startsWith('decline_rules:')) {
-                try {
-                    // Extract the role ID from the button custom ID
-                    const roleId = interaction.customId.split(':')[1];
-                    
-                    // Get the verification role
-                    const verificationRole = interaction.guild.roles.cache.get(roleId);
-                    
-                    if (verificationRole) {
-                        // Remove the role from the user if they have it
-                        if (interaction.member.roles.cache.has(verificationRole.id)) {
-                            await interaction.member.roles.remove(verificationRole);
-                        }
-                    }
-                    
-                    // Send confirmation
-                    await interaction.reply({ content: 'Rules declined. Some features may be restricted.', ephemeral: true });
-                    
-                    // Send DM to the user
-                    try {
-                        await interaction.user.send({
-                            content: `**Rules Declined**\n\nYou declined the rules in **${interaction.guild.name}**.\n\nSome features may be restricted. Verify again if you change your mind.`
-                        });
-                    } catch (dmError) {
-                        console.error('Could not send DM to user:', dmError);
-                    }
-                } catch (error) {
-                    console.error('Error during rule declination:', error);
-                    await interaction.reply({ content: 'Something went wrong. Contact an admin.', ephemeral: true });
-                }
-            }
-        } catch (generalError) {
-            console.error('General button interaction error:', generalError);
-            try {
-                await interaction.reply({ content: 'Something went wrong. Try again.', ephemeral: true });
-            } catch {
-                // Fallback if reply fails
-                console.error('Could not send error message');
-            }
-        }
-    }
-});
-
-// Message event handler for capturing rules content
-client.on('messageCreate', async message => {
-    // Ignore bot messages
-    if (message.author.bot) return;
-    
-    // Check if this user is waiting to input rules
-    const waitingData = waitingForRulesMessage.get(message.author.id);
-    if (waitingData && waitingData.channelId === message.channelId) {
-        // Remove from waiting list
-        waitingForRulesMessage.delete(message.author.id);
-        
-        // Create verification buttons
-        const acceptButtonId = `accept_rules:${waitingData.roleId}`;
-        const declineButtonId = `decline_rules:${waitingData.roleId}`;
-        
-        const acceptButton = new ButtonBuilder()
-            .setCustomId(acceptButtonId)
-            .setLabel('Accept Rules / Verify')
-            .setStyle(ButtonStyle.Success);
-            
-        const declineButton = new ButtonBuilder()
-            .setCustomId(declineButtonId)
-            .setLabel('Decline Rules')
-            .setStyle(ButtonStyle.Danger);
-            
-        const row = new ActionRowBuilder()
-            .addComponents(acceptButton, declineButton);
-            
-        try {
-            // Delete the user's message if we can
-            try {
-                await message.delete();
-            } catch (deleteError) {
-                console.error('Could not delete user message:', deleteError);
-                // Continue even if we can't delete the message
-            }
-            
-            // Send the rules message with buttons
-            await message.channel.send({
-                content: message.content,
-                components: [row]
-            });
-            
-            // Confirm to the user
-            await message.author.send(`Rules message posted in <#${message.channelId}> with verification buttons.`).catch(() => {});
-        } catch (error) {
-            console.error('Error posting rules message:', error);
-            // Try to notify the user
-            await message.channel.send({ 
-                content: `Error posting rules message. Try again.`,
-                ephemeral: true 
-            }).catch(() => {});
-        }
-    }
-    
-    // Check if message contains "key" (case insensitive)
-    if (message.content.toLowerCase().includes('key')) {
-        // Determine content based on role
-        const hasRequiredRole = message.member.roles.cache.has('1274092938254876744');
-
-        // Helper to ping user in a channel and delete the message
-        async function pingUserInChannel(channelId, userId) {
-            try {
-                const channel = message.guild?.channels?.cache.get(channelId);
-                if (!channel || !channel.isTextBased?.()) return;
-                const sent = await channel.send({
-                    content: `<@${userId}>`,
-                    allowedMentions: { users: [userId] }
-                });
-                await sent.delete().catch(() => {});
-            } catch (err) {
-                console.error(`Failed to ping user ${userId} in channel ${channelId}:`, err);
-            }
-        }
-
-        // Perform pings based on role
-        if (hasRequiredRole) {
-            // Only ping in key channel
-            void pingUserInChannel('1382708528891822203', message.author.id);
-        } else {
-            // Ping in verify channel and key channel
-            void pingUserInChannel('1379545851772272811', message.author.id);
-            void pingUserInChannel('1382708528891822203', message.author.id);
-        }
-
-        const dmContent = hasRequiredRole
-            ? `**Key Access**\n\nGet your key here:\nhttps://discord.com/channels/1274086892765188159/1382708528891822203`
-            : `**Verification Required**\n\nVerify yourself first here:\nhttps://discord.com/channels/1274086892765188159/1379545851772272811\n\nThen get your key here:\nhttps://discord.com/channels/1274086892765188159/1382708528891822203`;
-        try {
-            await message.author.send({ content: dmContent });
-        } catch (dmError) {
-            console.error('Could not send DM to user:', dmError);
-            // Fallback: reply in channel with explanation and same content
-            try {
-                await message.reply({ 
-                    content: `Your DMs are disabled. Posting here instead:\n\n${dmContent}`
-                });
-            } catch (replyError) {
-                console.error('Could not send reply either:', replyError);
-            }
-        }
-    }
-});
+// end of command handlers
 
 // Login bot with token
 client.login(token);
