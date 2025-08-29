@@ -47,6 +47,8 @@ const allowedUserId = '972533051173240875';
 
 // Track users waiting to input rules messages
 const waitingForRulesMessage = new Map();
+// Track jailed users' previous roles for restoration
+const jailedPreviousRoles = new Map();
 
 // Check if a user has permission to use restricted commands
 function hasPermission(member) {
@@ -65,7 +67,7 @@ if (!token || !clientId) {
     process.exit(1);
 }
 
-// Define Slash Commands (only rules and msg)
+// Define Slash Commands (rules, msg, jail, unjail)
 const commands = [
     new SlashCommandBuilder()
         .setName('rules')
@@ -87,6 +89,27 @@ const commands = [
         .addStringOption(option =>
             option.setName('message')
                 .setDescription('The message content to send')
+                .setRequired(true)
+        ),
+    new SlashCommandBuilder()
+        .setName('jail')
+        .setDescription('Entfernt alle Rollen und gibt die Jail-Rolle')
+        .addUserOption(option =>
+            option.setName('user')
+                .setDescription('Der zu jailende User')
+                .setRequired(true)
+        )
+        .addStringOption(option =>
+            option.setName('reason')
+                .setDescription('Grund (optional)')
+                .setRequired(false)
+        ),
+    new SlashCommandBuilder()
+        .setName('unjail')
+        .setDescription('Entfernt die Jail-Rolle und stellt alte Rollen wieder her')
+        .addUserOption(option =>
+            option.setName('user')
+                .setDescription('Der zu entjailende User')
                 .setRequired(true)
         )
 ];
@@ -214,6 +237,100 @@ client.on('interactionCreate', async interaction => {
             } catch (error) {
                 console.error('Error sending message to channel:', error);
                 await interaction.reply({ content: 'Failed to send message. Check my permissions.', ephemeral: true });
+            }
+        }
+        
+        if (interaction.commandName === 'jail') {
+            if (!hasPermission(interaction.member)) {
+                await interaction.reply({ content: 'You don\'t have permission to use this command.', ephemeral: true });
+                return;
+            }
+
+            const targetUser = interaction.options.getUser('user', true);
+            const reason = interaction.options.getString('reason') || 'No reason provided';
+            const jailRoleId = '1410930206377775185';
+
+            try {
+                const guild = interaction.guild;
+                const member = await guild.members.fetch(targetUser.id);
+
+                // Validate role manageability
+                const me = await guild.members.fetchMe();
+                if (member.roles.highest.position >= me.roles.highest.position && guild.ownerId !== me.id) {
+                    await interaction.reply({ content: 'I cannot modify roles for this user due to role hierarchy.', ephemeral: true });
+                    return;
+                }
+
+                const jailRole = guild.roles.cache.get(jailRoleId);
+                if (!jailRole) {
+                    await interaction.reply({ content: 'Jail role not found. Please check the role ID.', ephemeral: true });
+                    return;
+                }
+
+                // Store previous roles (excluding @everyone and managed roles)
+                const previousRoleIds = member.roles.cache
+                    .filter(r => r.id !== guild.id && !r.managed && r.id !== jailRoleId)
+                    .map(r => r.id);
+                jailedPreviousRoles.set(member.id, previousRoleIds);
+
+                // Set only the jail role (removes others)
+                await member.roles.set([jailRoleId]);
+
+                await interaction.reply({ content: `🔒 ${member.user.tag} wurde gejailt. Grund: ${reason}`, ephemeral: false });
+            } catch (err) {
+                console.error('Error jailing user:', err);
+                try {
+                    await interaction.reply({ content: 'Fehler beim Jail. Prüfe meine Berechtigungen.', ephemeral: true });
+                } catch {}
+            }
+        }
+
+        if (interaction.commandName === 'unjail') {
+            if (!hasPermission(interaction.member)) {
+                await interaction.reply({ content: 'You don\'t have permission to use this command.', ephemeral: true });
+                return;
+            }
+
+            const targetUser = interaction.options.getUser('user', true);
+            const jailRoleId = '1410930206377775185';
+            const mustHaveRoleId = '1274092938254876744';
+
+            try {
+                const guild = interaction.guild;
+                const member = await guild.members.fetch(targetUser.id);
+
+                // Validate role manageability
+                const me = await guild.members.fetchMe();
+                if (member.roles.highest.position >= me.roles.highest.position && guild.ownerId !== me.id) {
+                    await interaction.reply({ content: 'I cannot modify roles for this user due to role hierarchy.', ephemeral: true });
+                    return;
+                }
+
+                const restoreRoles = jailedPreviousRoles.get(member.id) || [];
+                // Ensure base role is included
+                if (!restoreRoles.includes(mustHaveRoleId)) restoreRoles.push(mustHaveRoleId);
+
+                // roles.set overwrites; include only roles that still exist and are manageable
+                const validRoleIds = restoreRoles.filter(roleId => {
+                    const role = guild.roles.cache.get(roleId);
+                    return !!role && !role.managed && role.editable;
+                });
+
+                // If nothing valid, at least ensure base role
+                if (validRoleIds.length === 0) {
+                    const baseRole = guild.roles.cache.get(mustHaveRoleId);
+                    if (baseRole) validRoleIds.push(mustHaveRoleId);
+                }
+
+                await member.roles.set(validRoleIds);
+                jailedPreviousRoles.delete(member.id);
+
+                await interaction.reply({ content: `🔓 ${member.user.tag} wurde entjailt und Rollen wiederhergestellt.`, ephemeral: false });
+            } catch (err) {
+                console.error('Error unjailing user:', err);
+                try {
+                    await interaction.reply({ content: 'Fehler beim Unjail. Prüfe meine Berechtigungen.', ephemeral: true });
+                } catch {}
             }
         }
     } catch (error) {
