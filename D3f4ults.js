@@ -364,7 +364,7 @@ client.on('interactionCreate', async interaction => {
                 return;
             }
             await interaction.member.roles.add(verificationRole);
-            await interaction.reply({ embeds: [buildStatusEmbed(`Verified. Role: ${verificationRole.name}`, 'success')], ephemeral: true });
+            await interaction.reply({ embeds: [buildStatusEmbed('Verified', 'success')], ephemeral: true });
         }
 
         if (interaction.customId.startsWith('decline_rules:')) {
@@ -373,7 +373,7 @@ client.on('interactionCreate', async interaction => {
             if (verificationRole && interaction.member.roles.cache.has(verificationRole.id)) {
                 await interaction.member.roles.remove(verificationRole);
             }
-            await interaction.reply({ embeds: [buildStatusEmbed('Declined.', 'info')], ephemeral: true });
+            await interaction.reply({ embeds: [buildStatusEmbed('Unverified', 'info')], ephemeral: true });
         }
     } catch (err) {
         console.error('Button interaction error:', err);
@@ -407,7 +407,7 @@ client.on('messageCreate', async message => {
         try {
             try { await message.delete(); } catch {}
             await message.channel.send({ content: message.content, components: [row] });
-            await message.author.send({ embeds: [buildStatusEmbed(`Rules posted in #${message.channel.name}.`, 'success')] }).catch(() => {});
+            await message.author.send({ embeds: [buildStatusEmbed('Verification system is ready.', 'success')] }).catch(() => {});
         } catch (err) {
             console.error('Error posting rules message:', err);
             await message.channel.send({ content: 'Failed to post rules message.' }).catch(() => {});
