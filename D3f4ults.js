@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType } = require('discord.js');
 const express = require("express");
 require('dotenv').config();
 
@@ -75,8 +75,33 @@ if (!token || !clientId) {
     process.exit(1);
 }
 
-// Slash Commands (jail, unjail)
+// Helper map for rules message capture
+const waitingForRulesMessage = new Map();
+
+// Slash Commands (rules, msg, jail, unjail)
 const commands = [
+    new SlashCommandBuilder()
+        .setName('rules')
+        .setDescription('Post a rules message with verify buttons')
+        .addRoleOption(option =>
+            option.setName('verification_role')
+                .setDescription('Role to give on verify')
+                .setRequired(true)
+        ),
+    new SlashCommandBuilder()
+        .setName('msg')
+        .setDescription('Send a message to a selected channel')
+        .addChannelOption(option =>
+            option.setName('channel')
+                .setDescription('Target text channel')
+                .addChannelTypes(ChannelType.GuildText)
+                .setRequired(true)
+        )
+        .addStringOption(option =>
+            option.setName('message')
+                .setDescription('Message content')
+                .setRequired(true)
+        ),
     new SlashCommandBuilder()
         .setName('jail')
         .setDescription('Jail a user')
@@ -178,6 +203,52 @@ client.on('interactionCreate', async interaction => {
         }
 
         // no other commands
+
+        if (interaction.commandName === 'rules') {
+            if (!hasPermission(interaction.member)) {
+                await interaction.reply({ embeds: [buildStatusEmbed('No permission.', 'error')], ephemeral: true });
+                return;
+            }
+
+            const verificationRole = interaction.options.getRole('verification_role');
+            waitingForRulesMessage.set(interaction.user.id, {
+                channelId: interaction.channelId,
+                roleId: verificationRole.id,
+                timestamp: Date.now()
+            });
+
+            await interaction.reply({
+                embeds: [buildStatusEmbed('Send your rules text in this channel. Your next message will be used.', 'info')],
+                ephemeral: true
+            });
+        }
+
+        if (interaction.commandName === 'msg') {
+            if (!hasPermission(interaction.member)) {
+                await interaction.reply({ embeds: [buildStatusEmbed('No permission.', 'error')], ephemeral: true });
+                return;
+            }
+
+            const targetChannel = interaction.options.getChannel('channel');
+            const messageContent = interaction.options.getString('message');
+
+            if (!targetChannel || targetChannel.guildId !== interaction.guildId) {
+                await interaction.reply({ embeds: [buildStatusEmbed('Invalid channel.', 'error')], ephemeral: true });
+                return;
+            }
+            if (!targetChannel.isTextBased?.()) {
+                await interaction.reply({ embeds: [buildStatusEmbed('Not a text channel.', 'error')], ephemeral: true });
+                return;
+            }
+
+            try {
+                await targetChannel.send({ content: messageContent });
+                await interaction.reply({ embeds: [buildStatusEmbed(`Sent to #${targetChannel.name}.`, 'success')] , ephemeral: true });
+            } catch (error) {
+                console.error('Error sending message to channel:', error);
+                await interaction.reply({ embeds: [buildStatusEmbed('Send failed.', 'error')], ephemeral: true });
+            }
+        }
         
         if (interaction.commandName === 'jail') {
             if (!hasPermission(interaction.member)) {
@@ -278,6 +349,69 @@ client.on('interactionCreate', async interaction => {
     } catch (error) {
         console.error('Error in interactionCreate:', error);
         await interaction.reply({ embeds: [buildStatusEmbed('Error.', 'error')], ephemeral: true });
+    }
+});
+
+// Button interactions for rules verify/decline
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isButton()) return;
+    try {
+        if (interaction.customId.startsWith('accept_rules:')) {
+            const roleId = interaction.customId.split(':')[1];
+            const verificationRole = interaction.guild.roles.cache.get(roleId);
+            if (!verificationRole) {
+                await interaction.reply({ embeds: [buildStatusEmbed('Verification role missing.', 'error')], ephemeral: true });
+                return;
+            }
+            await interaction.member.roles.add(verificationRole);
+            await interaction.reply({ embeds: [buildStatusEmbed(`Verified. Role: ${verificationRole.name}`, 'success')], ephemeral: true });
+        }
+
+        if (interaction.customId.startsWith('decline_rules:')) {
+            const roleId = interaction.customId.split(':')[1];
+            const verificationRole = interaction.guild.roles.cache.get(roleId);
+            if (verificationRole && interaction.member.roles.cache.has(verificationRole.id)) {
+                await interaction.member.roles.remove(verificationRole);
+            }
+            await interaction.reply({ embeds: [buildStatusEmbed('Declined.', 'info')], ephemeral: true });
+        }
+    } catch (err) {
+        console.error('Button interaction error:', err);
+        try { await interaction.reply({ embeds: [buildStatusEmbed('Error.', 'error')], ephemeral: true }); } catch {}
+    }
+});
+
+// Message handler to capture the rules content and post with buttons
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
+
+    const waitingData = waitingForRulesMessage.get(message.author.id);
+    if (waitingData && waitingData.channelId === message.channelId) {
+        waitingForRulesMessage.delete(message.author.id);
+
+        const acceptButtonId = `accept_rules:${waitingData.roleId}`;
+        const declineButtonId = `decline_rules:${waitingData.roleId}`;
+
+        const acceptButton = new ButtonBuilder()
+            .setCustomId(acceptButtonId)
+            .setLabel('Accept / Verify')
+            .setStyle(ButtonStyle.Success);
+
+        const declineButton = new ButtonBuilder()
+            .setCustomId(declineButtonId)
+            .setLabel('Decline')
+            .setStyle(ButtonStyle.Danger);
+
+        const row = new ActionRowBuilder().addComponents(acceptButton, declineButton);
+
+        try {
+            try { await message.delete(); } catch {}
+            await message.channel.send({ content: message.content, components: [row] });
+            await message.author.send({ embeds: [buildStatusEmbed(`Rules posted in #${message.channel.name}.`, 'success')] }).catch(() => {});
+        } catch (err) {
+            console.error('Error posting rules message:', err);
+            await message.channel.send({ content: 'Failed to post rules message.' }).catch(() => {});
+        }
     }
 });
 
