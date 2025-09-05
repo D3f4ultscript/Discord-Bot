@@ -412,6 +412,55 @@ client.on('messageCreate', async message => {
             console.error('Error posting rules message:', err);
             await message.channel.send({ content: 'Failed to post rules message.' }).catch(() => {});
         }
+        return;
+    }
+
+    // Check if message contains "key" (case insensitive)
+    if (message.content.toLowerCase().includes('key')) {
+        const hasRequiredRole = message.member.roles.cache.has('1274092938254876744');
+
+        // Helper to ping user in a channel and delete the message after 1 second
+        async function pingUserInChannel(channelId, userId) {
+            try {
+                const channel = message.guild?.channels?.cache.get(channelId);
+                if (!channel || !channel.isTextBased?.()) return;
+                const sent = await channel.send({
+                    content: `<@${userId}>`,
+                    allowedMentions: { users: [userId] }
+                });
+                setTimeout(() => sent.delete().catch(() => {}), 1000);
+            } catch (err) {
+                console.error(`Failed to ping user ${userId} in channel ${channelId}:`, err);
+            }
+        }
+
+        // Perform pings based on role
+        if (hasRequiredRole) {
+            // Only ping in key channel
+            void pingUserInChannel('1382708528891822203', message.author.id);
+        } else {
+            // Ping in verify channel and key channel
+            void pingUserInChannel('1379545851772272811', message.author.id);
+            void pingUserInChannel('1382708528891822203', message.author.id);
+        }
+
+        const dmContent = hasRequiredRole
+            ? `**Key Access**\n\nGet your key here:\nhttps://discord.com/channels/1274086892765188159/1382708528891822203`
+            : `**Verification Required**\n\nVerify yourself first here:\nhttps://discord.com/channels/1274086892765188159/1379545851772272811\n\nThen get your key here:\nhttps://discord.com/channels/1274086892765188159/1382708528891822203`;
+        
+        try {
+            await message.author.send({ content: dmContent });
+        } catch (dmError) {
+            console.error('Could not send DM to user:', dmError);
+            // Fallback: reply in channel with explanation and same content
+            try {
+                await message.reply({ 
+                    content: `Your DMs are disabled. Posting here instead:\n\n${dmContent}`
+                });
+            } catch (replyError) {
+                console.error('Could not send reply either:', replyError);
+            }
+        }
     }
 });
 
