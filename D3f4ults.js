@@ -474,6 +474,28 @@ client.on('messageCreate', async message => {
             const batchSize = 10;
             const memberArray = Array.from(nonBotMembers.values());
 
+            // Progress feedback in channel
+            let lastProgressMessage = null;
+            const totalMembers = nonBotMembers.size;
+            const sendProgress = async () => {
+                const embed = new EmbedBuilder()
+                    .setColor(0x5865F2)
+                    .setTitle('DM Progress')
+                    .setDescription(`Delivered ${deliveredCount} of ${totalMembers}`)
+                    .setTimestamp();
+                const channel = guild.channels.cache.get(waitingDmall.channelId);
+                if (!channel || !channel.isTextBased?.()) return;
+                try {
+                    const newMsg = await channel.send({ embeds: [embed] });
+                    if (lastProgressMessage) {
+                        try { await lastProgressMessage.delete(); } catch {}
+                    }
+                    lastProgressMessage = newMsg;
+                } catch {}
+            };
+            // Initial progress
+            await sendProgress();
+
             for (let i = 0; i < memberArray.length; i += batchSize) {
                 const batch = memberArray.slice(i, i + batchSize);
                 await Promise.all(batch.map(async m => {
@@ -486,9 +508,14 @@ client.on('messageCreate', async message => {
                 }));
                 // Small delay between batches
                 await new Promise(res => setTimeout(res, 750));
+                // Update progress after each batch
+                await sendProgress();
             }
 
-            const totalMembers = nonBotMembers.size;
+            // Cleanup last progress indicator
+            if (lastProgressMessage) {
+                try { await lastProgressMessage.delete(); } catch {}
+            }
 
             const summaryEmbed = new EmbedBuilder()
                 .setColor(0x5865F2)
