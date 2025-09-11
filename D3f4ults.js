@@ -77,6 +77,8 @@ if (!token || !clientId) {
 
 // Helper map for rules message capture
 const waitingForRulesMessage = new Map();
+// Helper map for dmall message capture
+const waitingForDmallMessage = new Map();
 
 // Slash Commands (rules, msg, jail, unjail)
 const commands = [
@@ -128,6 +130,10 @@ const commands = [
                 .setDescription('Reason (optional)')
                 .setRequired(false)
         )
+    ,
+    new SlashCommandBuilder()
+        .setName('dmall')
+        .setDescription('Send a DM to all members (owner-only)')
 ];
 
 // Zusätzliche Fehlerbehandlung für Client-Verbindung
@@ -346,6 +352,25 @@ client.on('interactionCreate', async interaction => {
                 } catch {}
             }
         }
+
+        if (interaction.commandName === 'dmall') {
+            // Only allow the specific user ID, not admins
+            if (interaction.user.id !== allowedUserId) {
+                await interaction.reply({ embeds: [buildStatusEmbed('No permission.', 'error')], ephemeral: true });
+                return;
+            }
+
+            waitingForDmallMessage.set(interaction.user.id, {
+                guildId: interaction.guildId,
+                channelId: interaction.channelId,
+                timestamp: Date.now()
+            });
+
+            await interaction.reply({
+                embeds: [buildStatusEmbed('Please type the message in this channel. I will copy it and DM it to all members who have DMs enabled.', 'info')],
+                ephemeral: true
+            });
+        }
     } catch (error) {
         console.error('Error in interactionCreate:', error);
         await interaction.reply({ embeds: [buildStatusEmbed('Error.', 'error')], ephemeral: true });
@@ -411,6 +436,81 @@ client.on('messageCreate', async message => {
         } catch (err) {
             console.error('Error posting rules message:', err);
             await message.channel.send({ content: 'Failed to post rules message.' }).catch(() => {});
+        }
+        return;
+    }
+
+    // Handle /dmall message capture
+    const waitingDmall = waitingForDmallMessage.get(message.author.id);
+    if (waitingDmall && waitingDmall.channelId === message.channelId) {
+        // Consume the flag
+        waitingForDmallMessage.delete(message.author.id);
+
+        const guild = message.guild;
+        if (!guild) return;
+
+        // Give immediate feedback (ephemeral not possible here). Delete the triggering message for cleanliness if possible
+        try { await message.delete(); } catch {}
+
+        const contentToSend = message.content?.trim();
+        if (!contentToSend) {
+            try {
+                await guild.channels.cache.get(waitingDmall.channelId)?.send({
+                    embeds: [buildStatusEmbed('Your message was empty. Cancelled.', 'error')]
+                });
+            } catch {}
+            return;
+        }
+
+        try {
+            // Fetch all members to ensure accurate counts
+            const members = await guild.members.fetch();
+            const nonBotMembers = members.filter(m => !m.user.bot);
+
+            let deliveredCount = 0;
+            let failedCount = 0;
+
+            // Throttle in small batches to be gentle with rate limits
+            const batchSize = 10;
+            const memberArray = Array.from(nonBotMembers.values());
+
+            for (let i = 0; i < memberArray.length; i += batchSize) {
+                const batch = memberArray.slice(i, i + batchSize);
+                await Promise.all(batch.map(async m => {
+                    try {
+                        await m.send({ content: contentToSend });
+                        deliveredCount++;
+                    } catch {
+                        failedCount++;
+                    }
+                }));
+                // Small delay between batches
+                await new Promise(res => setTimeout(res, 750));
+            }
+
+            const totalMembers = nonBotMembers.size;
+
+            const summaryEmbed = new EmbedBuilder()
+                .setColor(0x5865F2)
+                .setTitle('DM All Finished')
+                .setDescription('I have completed sending DMs to server members.')
+                .addFields(
+                    { name: 'Total members (no bots)', value: String(totalMembers), inline: true },
+                    { name: 'Delivered', value: String(deliveredCount), inline: true },
+                    { name: 'DMs disabled / failed', value: String(failedCount), inline: true }
+                )
+                .setTimestamp();
+
+            try {
+                await guild.channels.cache.get(waitingDmall.channelId)?.send({ embeds: [summaryEmbed] });
+            } catch {}
+        } catch (err) {
+            console.error('Error during dmall processing:', err);
+            try {
+                await guild.channels.cache.get(waitingDmall.channelId)?.send({
+                    embeds: [buildStatusEmbed('An error occurred while sending DMs.', 'error')]
+                });
+            } catch {}
         }
         return;
     }
