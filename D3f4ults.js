@@ -469,6 +469,7 @@ client.on('messageCreate', async message => {
 
             let deliveredCount = 0;
             let failedCount = 0;
+            const startTime = Date.now();
 
             // Throttle in small batches to be gentle with rate limits
             const batchSize = 10;
@@ -481,7 +482,15 @@ client.on('messageCreate', async message => {
                 const embed = new EmbedBuilder()
                     .setColor(0x5865F2)
                     .setTitle('DM Progress')
-                    .setDescription(`Delivered ${deliveredCount} of ${totalMembers}`)
+                    .setDescription(() => {
+                        const processed = deliveredCount + failedCount;
+                        const remaining = Math.max(totalMembers - processed, 0);
+                        const elapsedMs = Math.max(Date.now() - startTime, 1);
+                        const ratePerMs = processed > 0 ? processed / elapsedMs : 0;
+                        const etaMs = ratePerMs > 0 ? Math.round(remaining / ratePerMs) : 0;
+                        const etaText = ratePerMs > 0 ? formatUptime(etaMs) : 'calculating…';
+                        return `Delivered ${deliveredCount} of ${totalMembers}\nRemaining ${remaining}\nETA ${etaText}`;
+                    })
                     .setTimestamp();
                 const channel = guild.channels.cache.get(waitingDmall.channelId);
                 if (!channel || !channel.isTextBased?.()) return;
@@ -524,7 +533,8 @@ client.on('messageCreate', async message => {
                 .addFields(
                     { name: 'Total members (no bots)', value: String(totalMembers), inline: true },
                     { name: 'Delivered', value: String(deliveredCount), inline: true },
-                    { name: 'DMs disabled / failed', value: String(failedCount), inline: true }
+                    { name: 'DMs disabled / failed', value: String(failedCount), inline: true },
+                    { name: 'Duration', value: formatUptime(Date.now() - startTime), inline: true }
                 )
                 .setTimestamp();
 
