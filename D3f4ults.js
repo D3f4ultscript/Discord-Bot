@@ -542,37 +542,7 @@ client.on('messageCreate', async message => {
         return;
     }
 
-    // Check if message contains "key" (case insensitive)
-    if (message.content.toLowerCase().includes('key')) {
-        const hasRequiredRole = message.member.roles.cache.has('1274092938254876744');
-
-        // Helper to ping user in a channel and optionally delete the message after 1 second
-        async function pingUserInChannel(channelId, userId, deleteAfter = true) {
-            try {
-                const channel = message.guild?.channels?.cache.get(channelId);
-                if (!channel || !channel.isTextBased?.()) return;
-                const sent = await channel.send({
-                    content: `<@${userId}>`,
-                    allowedMentions: { users: [userId] }
-                });
-                if (deleteAfter) {
-                    setTimeout(() => sent.delete().catch(() => {}), 1000);
-                }
-            } catch (err) {
-                console.error(`Failed to ping user ${userId} in channel ${channelId}:`, err);
-            }
-        }
-
-        // Perform pings based on role
-        if (hasRequiredRole) {
-            // Only ping in channel 1422262281781248111
-            void pingUserInChannel('1422262281781248111', message.author.id, false);
-        } else {
-            // Ping in verify channel and delete quickly, and also ping in 1274087858000494704 without deleting
-            void pingUserInChannel('1379545851772272811', message.author.id, true);
-            void pingUserInChannel('1274087858000494704', message.author.id, false);
-        }
-    }
+    // No handling for messages containing "key" anymore
 });
 
 // end of command handlers
